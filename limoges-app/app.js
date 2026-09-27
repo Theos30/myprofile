@@ -252,10 +252,24 @@ function setTiles() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
     subdomains: "abcd", maxZoom: 19,
   }).addTo(map);
+  tiles.once("tileerror", drawFallbackBackdrop);
+}
+
+// Fond de secours quand les tuiles ne chargent pas (hors ligne, réseau filtré)
+let backdrop = null;
+function drawFallbackBackdrop() {
+  if (!map || backdrop) return;
+  $("#map").classList.add("offline");
+  const vienne = [[45.8190, 1.2300], [45.8222, 1.2440], [45.8243, 1.2560], [45.8256, 1.2640], [45.8262, 1.2672], [45.8270, 1.2730], [45.8292, 1.2830], [45.8320, 1.2950]];
+  backdrop = L.layerGroup([
+    L.polyline(vienne, { color: "#3A9BDC", weight: 14, opacity: .35, lineCap: "round", interactive: false }),
+    L.polyline(vienne, { color: "#3A9BDC", weight: 3, opacity: .8, interactive: false })
+      .bindTooltip("La Vienne", { permanent: true, direction: "bottom", className: "river-label", offset: [0, 8] }),
+  ]).addTo(map);
 }
 
 function destroyMap() {
-  if (map) { map.remove(); map = null; tiles = null; markers = []; routeLine = null; }
+  if (map) { map.remove(); map = null; tiles = null; backdrop = null; markers = []; routeLine = null; }
 }
 
 function initMap(param) {

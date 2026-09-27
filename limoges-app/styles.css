@@ -37,6 +37,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --bg: #0A1224;
     --surface: #111C35;
     --surface-2: #182749;
@@ -48,6 +49,7 @@
   }
 }
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --bg: #0A1224;
   --surface: #111C35;
   --surface-2: #182749;
@@ -311,6 +313,13 @@ h1, h2, h3, p { margin: 0; }
 .leaflet-control-attribution { font-size: 10px; }
 .leaflet-bottom { bottom: calc(var(--tabbar-h) + 8px); }
 .leaflet-top { top: 60px; }
+#map.offline {
+  background-color: var(--surface-2);
+  background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+.river-label { background: none; border: 0; box-shadow: none; color: var(--sky); font: italic 600 13px "Outfit", sans-serif; letter-spacing: .06em; }
+.river-label::before { display: none; }
 .me-dot { width: 18px; height: 18px; border-radius: 50%; background: var(--sky); border: 3px solid #fff; box-shadow: 0 0 0 8px rgba(58,155,220,.25); }
 
 /* ---------- Agenda ---------- */
