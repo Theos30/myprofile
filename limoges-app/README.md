@@ -7,7 +7,10 @@ un point d'entrée unique pour découvrir, s'informer et partager Limoges.
 
 - **Ma page** (écran d'accueil) : un fil de widgets que chacun organise avec « Personnaliser »
   (ajouter, retirer, déplacer par glisser-déposer ou flèches, taille demi/pleine largeur, prénom).
-- **Carte** interactive (Leaflet + OpenStreetMap) : filtres, parcours tracés, « autour de moi ».
+- **Partager** : les habitants publient eux-mêmes leurs événements (titre, catégorie, date, lieu,
+  organisateur, description). Chacun peut dire « J'y vais », signaler un contenu (masqué après
+  3 signalements) et supprimer ses propres publications. Ces événements apparaissent aussi dans
+  l'Agenda et dans le widget « Proposés par les habitants ».
 - **Agenda** filtrable (culture, sport, autres).
 - **Jouer** : quiz Limoges avec points et badges.
 - **Guide** : chat par mots-clés (lieux, sorties, score du CSP, météo).
@@ -21,11 +24,20 @@ un point d'entrée unique pour découvrir, s'informer et partager Limoges.
 | Sport à Limoges (CSP, Limoges Handball, Limoges FC) | [TheSportsDB](https://www.thesportsdb.com) | clé publique gratuite `123` |
 | Événements, Culture | [OpenAgenda via OpenDataSoft](https://public.opendatasoft.com/explore/dataset/evenements-publics-openagenda/) | aucune |
 | Le saviez-vous ? | Wikipédia (API REST) | aucune |
-| Quiz du jour, Parcours, Explorer | contenu de l'app | — |
+| Quiz du jour, Limodoku | contenu de l'app | — |
+| Proposés par les habitants | publications des utilisateurs | — |
 | Bons plans, Actualités | exemples en attendant un espace commerçants | — |
 
 Chaque widget affiche **En direct** quand la source répond, sinon **Exemple** avec des données
 d'exemple (`data.js`). Les préférences (widgets, équipes, prénom, favoris, avis) restent sur l'appareil.
+
+## Événements partagés : où sont-ils enregistrés ?
+
+- **Page Artifact** : dans la base partagée de la page (collections `events`, `going`, `flags`),
+  visible en direct par tous ses visiteurs.
+- **Version du dépôt sans serveur** : sur l'appareil uniquement (mode local, avec trois exemples).
+  Pour une vraie mise en ligne, il faudra brancher un serveur (par exemple Firebase ou Supabase)
+  derrière l'objet `community` de `app.js`, avec comptes utilisateurs et modération.
 
 ## Charte
 

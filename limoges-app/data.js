@@ -117,10 +117,11 @@ const DEALS = [
   { shop: "Comptoir des Halles", offer: "Dégustation offerte", detail: "de produits du Limousin", place: "halles" },
 ];
 
-const TOURS = [
-  { id: "t1", title: "Limoges médiéval", duration: "1 h 30", km: "2,1 km", stops: ["boucherie", "halles", "cathedrale", "pont"], gradient: "var(--flame)" },
-  { id: "t2", title: "Arts du feu", duration: "2 h", km: "3,4 km", stops: ["dubouche", "beauxarts", "gare"], gradient: "var(--ocean)" },
-  { id: "t3", title: "Limoges au vert", duration: "1 h", km: "1,8 km", stops: ["eveche", "pont", "thuillat"], gradient: "var(--forest)" },
+// Exemples de la partie « Partager » (mode local, sans serveur)
+const COMMUNITY_SAMPLE = [
+  { id: "x1", title: "Vide-grenier du quartier", cat: "famille", date: "2026-10-04T08:00", place: "Place Jourdan", org: "Comité de quartier", desc: "Une centaine d'exposants, buvette et crêpes.", author: "", example: true, baseGoing: 12 },
+  { id: "x2", title: "Scène ouverte acoustique", cat: "culture", date: "2026-10-09T20:30", place: "Café du centre", org: "Collectif Zic87", desc: "Venez jouer 2 ou 3 morceaux, guitare et micro fournis.", author: "", example: true, baseGoing: 5 },
+  { id: "x3", title: "Footing du dimanche au bord de la Vienne", cat: "sport", date: "2026-10-12T10:00", place: "Pont Saint-Étienne", org: "Les Runners de Limoges", desc: "8 km à allure tranquille, tous niveaux.", author: "", example: true, baseGoing: 9 },
 ];
 
 // Équipes suivies par le widget Sport (recherchées sur TheSportsDB)

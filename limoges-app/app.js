@@ -1,4 +1,4 @@
-// Limoges — app : Ma page (widgets personnalisables), carte, agenda, quiz, guide
+// Limoges — app : Ma page (widgets personnalisables), partage d'événements, agenda, jeux, guide
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const view = $("#view");
@@ -58,7 +58,6 @@ function toast(msg) {
     const next = root.dataset.theme === "dark" ? "light" : "dark";
     root.dataset.theme = next;
     store.set("theme", next);
-    if (map) setTiles();
   });
 })();
 
@@ -262,23 +261,20 @@ const WIDGETS = {
     title: "Bons plans", icon: "tag", sizes: ["l"], render: renderDeals, sample: true,
     desc: "Promotions des commerces de la ville.",
   },
-  parcours: {
-    title: "Parcours", icon: "route", sizes: ["l"], render: renderTours,
-    desc: "Balades guidées à suivre sur la carte.",
+  communaute: {
+    title: "Proposés par les habitants", icon: "megaphone", sizes: ["l"], render: renderCommunityWidget,
+    desc: "Les événements partagés par les Limougeauds, et un bouton pour publier le vôtre.",
+    foot: `<a class="w-link" href="#partager">Tout voir ${ic("arrow")}</a>`,
   },
   actus: {
     title: "Actualités", icon: "news", sizes: ["l"], render: renderNews, sample: true,
     desc: "Les nouvelles de la ville et des quartiers.",
   },
-  explorer: {
-    title: "Explorer", icon: "compass", sizes: ["l"], render: renderExplorer,
-    desc: "Les lieux de Limoges par catégorie.",
-  },
 };
 
 const DEFAULT_LAYOUT = [
   { id: "meteo", size: "s" }, { id: "savoir", size: "s" }, { id: "limodoku", size: "l" }, { id: "sport", size: "l" }, { id: "agenda", size: "l" },
-  { id: "culture", size: "l" }, { id: "quiz", size: "l" }, { id: "plans", size: "l" }, { id: "parcours", size: "l" },
+  { id: "communaute", size: "l" }, { id: "culture", size: "l" }, { id: "quiz", size: "l" }, { id: "plans", size: "l" },
 ];
 const cleanLayout = (list) => list.filter((x, i, a) => WIDGETS[x.id] && a.findIndex((y) => y.id === x.id) === i)
   .map((x) => ({ id: x.id, size: WIDGETS[x.id].sizes.includes(x.size) ? x.size : WIDGETS[x.id].sizes[0] }));
@@ -289,6 +285,12 @@ if (store.get("layoutRev", 1) < 2) {
   if (!layout.some((x) => x.id === "limodoku")) layout.splice(Math.min(2, layout.length), 0, { id: "limodoku", size: "l" });
   saveLayout();
   store.set("layoutRev", 2);
+}
+// … puis le widget des événements proposés par les habitants
+if (store.get("layoutRev", 1) < 3) {
+  if (!layout.some((x) => x.id === "communaute")) layout.splice(Math.min(3, layout.length), 0, { id: "communaute", size: "l" });
+  saveLayout();
+  store.set("layoutRev", 3);
 }
 let editing = false;
 
@@ -329,6 +331,7 @@ function evRow(e) {
   const inner = `<span class="ev-date"><b>${when.getDate()}</b><small>${monthShort(when)}</small></span>
     <span class="ev-main"><strong class="ev-title">${esc(e.title)}</strong><span class="ev-sub">${sub} · ${esc(e.place)}</span></span>
     ${ic(e.url ? "external" : "arrow")}`;
+  if (e.eventId) return `<button class="ev" data-event="${esc(e.eventId)}">${inner.replace("</span></span>", ` · <em class="by-locals">Habitants</em></span></span>`)}</button>`;
   return e.url
     ? `<a class="ev" href="${esc(e.url)}" target="_blank" rel="noopener">${inner}</a>`
     : `<button class="ev" data-place="${e.placeId}">${inner}</button>`;
@@ -369,22 +372,9 @@ function renderDeals() {
     </button>`).join("")}</div>`;
 }
 
-function renderTours() {
-  return `<div class="hscroll">${TOURS.map((t) => `
-    <a class="tour" href="#carte/parcours-${t.id}" style="background:${t.gradient}">
-      <span class="tour-stops">${t.stops.length} étapes</span>
-      <h3>${esc(t.title)}</h3><span>${t.duration} · ${t.km}</span>
-    </a>`).join("")}</div>`;
-}
-
 function renderNews() {
   return NEWS.map((n) => `<article class="news-item"><span class="news-tag"></span>
     <div><h3>${esc(n.title)}</h3><p>${esc(n.tag)} · ${esc(n.time)}</p></div></article>`).join("");
-}
-
-function renderExplorer() {
-  return `<div class="cat-grid">${Object.entries(CATEGORIES).map(([k, c]) => `
-    <a class="cat-tile" href="#carte/${k}"><span class="bubble" style="background:${catGradient(k)}">${ic(c.icon)}</span>${c.label}</a>`).join("")}</div>`;
 }
 
 function widgetShell(item, i = 0, solo = false) {
@@ -483,24 +473,18 @@ const screens = {
       <p class="footnote">Ma page · Limoges, arts du feu et innovation</p>`;
   },
 
-  carte() {
-    view.classList.add("no-pad");
-    const filters = [["all", "Tout", "sparkles"], ...Object.entries(CATEGORIES).map(([k, c]) => [k, c.label, c.icon])];
+  partager(param) {
+    const active = COMMUNITY_CATS[param] ? param : "all";
     return `
-      <div class="map-wrap">
-        <div id="map" aria-label="Carte interactive de Limoges"></div>
-        <div class="map-overlay">
-          <div class="chips" id="map-filters">
-            ${filters.map(([k, l, i]) => `<button class="chip" data-filter="${k}">${ic(i)} ${l}</button>`).join("")}
-            <button class="chip" id="locate">${ic("locate")} Autour de moi</button>
-          </div>
-        </div>
-        <div class="map-zoom glass">
-          <button id="zoom-in" aria-label="Zoomer">${ic("plus")}</button>
-          <button id="zoom-out" aria-label="Dézoomer"><svg class="i" aria-hidden="true"><path d="M5 12h14"/></svg></button>
-        </div>
-        <div class="map-cards hscroll" id="map-cards"></div>
-      </div>`;
+      <h1 class="page-title">Partager</h1>
+      <p class="page-sub">Les événements proposés par les Limougeauds. Ajoutez le vôtre !</p>
+      <button class="btn flame block" id="new-event">${ic("plus")} Proposer un événement</button>
+      <div class="chips" style="margin-top:18px">
+        <a class="chip ${active === "all" ? "active" : ""}" href="#partager">${ic("sparkles")} Tout</a>
+        ${Object.entries(COMMUNITY_CATS).map(([k, c]) => `<a class="chip ${k === active ? "active" : ""}" href="#partager/${k}">${ic(c.icon)} ${c.label}</a>`).join("")}
+      </div>
+      <div id="community-list" class="community-list"></div>
+      <p class="src-note" id="community-mode"></p>`;
   },
 
   agenda(param) {
@@ -546,8 +530,8 @@ function route() {
   const screen = screens[name] ? name : "mapage";
   if (screen !== "mapage") editing = false;
   closeSheet();
+  communityView = null;
   view.classList.remove("no-pad", "chat-view");
-  destroyMap();
   view.innerHTML = screens[screen](param);
   view.scrollTop = 0;
   document.querySelectorAll(".tabbar a").forEach((a) => a.classList.toggle("active", a.dataset.tab === screen));
@@ -591,7 +575,11 @@ const after = {
       route();
     };
   },
-  carte(param) { initMap(param); },
+  partager(param) {
+    $("#new-event").onclick = () => openEventForm();
+    communityView = () => renderCommunityList(param);
+    communityView();
+  },
   agenda(param) { renderAgenda(param); },
   jouer(param) { param === "quiz" ? renderQuiz() : renderDoku(); },
   guide() { initChat(); },
@@ -729,7 +717,11 @@ async function renderAgenda(param) {
   const res = await loadEvents();
   const list = $("#agenda-list");
   if (!list) return;
-  const items = res.data.filter((e) => active === "all" || e.kind === active);
+  const shared = community.upcoming().map((e) => ({
+    title: e.title, start: parseLocal(e.date), end: parseLocal(e.date), place: e.place, url: "",
+    kind: (COMMUNITY_CATS[e.cat] || COMMUNITY_CATS.autre).kind, eventId: e.id,
+  }));
+  const items = [...res.data, ...shared].filter((e) => active === "all" || e.kind === active).sort((a, b) => whenOf(a) - whenOf(b));
   const groups = [];
   items.forEach((e) => {
     const label = isOngoing(e) ? "En ce moment" : fmtDay(e.start);
@@ -743,166 +735,267 @@ async function renderAgenda(param) {
 }
 
 // =========================================================
-// Carte
+// Partage : événements proposés par les habitants
 // =========================================================
-let map = null, tiles = null, markers = [], routeLine = null, backdrop = null;
+const COMMUNITY_CATS = {
+  culture: { label: "Culture",    icon: "palette",   kind: "culture" },
+  sport:   { label: "Sport",      icon: "trophy",    kind: "sport" },
+  fete:    { label: "Fête",       icon: "sparkles",  kind: "autre" },
+  famille: { label: "Famille",    icon: "heart",     kind: "autre" },
+  asso:    { label: "Solidarité", icon: "megaphone", kind: "autre" },
+  autre:   { label: "Autre",      icon: "calendar",  kind: "autre" },
+};
+const FLAG_LIMIT = 3;            // masqué dès 3 signalements
+let communityView = null;        // rafraîchit l'écran Partager quand les données changent
 
-function setTiles() {
-  const dark = document.documentElement.dataset.theme === "dark";
-  if (tiles) map.removeLayer(tiles);
-  tiles = L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark ? "dark_all" : "rastertiles/voyager"}/{z}/{x}/{y}{r}.png`, {
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
-    subdomains: "abcd", maxZoom: 19,
-  }).addTo(map);
-  tiles.once("tileerror", drawPlan);
-}
+// Stockage : base partagée de la page quand elle existe, sinon cet appareil.
+const community = {
+  mode: "local", ready: false, uid: null, canWrite: true, isAdmin: false,
+  events: [], going: {}, flags: {},   // going / flags : { idEvénement: nombre }
+  mine: { going: [], flags: [] },
+  db: null,
 
-// Plan simplifié dessiné par l'app quand les tuiles ne chargent pas (hors ligne, réseau filtré)
-const PLAN = {
-  vienne: [[45.8236, 1.2300], [45.8232, 1.2400], [45.8238, 1.2480], [45.8247, 1.2560], [45.8252, 1.2615], [45.8258, 1.2675],
-           [45.8268, 1.2740], [45.8285, 1.2800], [45.8305, 1.2860], [45.8330, 1.2940]],
-  boulevards: [[45.8352, 1.2555], [45.8345, 1.2625], [45.8318, 1.2655], [45.8292, 1.2645], [45.8280, 1.2585], [45.8298, 1.2528], [45.8330, 1.2522], [45.8352, 1.2555]],
-  rail: [[45.8363, 1.2680], [45.8420, 1.2692], [45.8490, 1.2660]],
-  parks: [
-    [[45.8284, 1.2652], [45.8284, 1.2690], [45.8268, 1.2692], [45.8266, 1.2656]],   // Jardins de l'Évêché
-    [[45.8352, 1.2648], [45.8354, 1.2678], [45.8336, 1.2684], [45.8333, 1.2652]],   // Champ de Juillet
-    [[45.8406, 1.2578], [45.8406, 1.2606], [45.8390, 1.2608], [45.8390, 1.2578]],   // Parc Victor Thuillat
-  ],
-  labels: [
-    { at: [45.8325, 1.2572], text: "Le Château", cls: "district" },
-    { at: [45.8292, 1.2708], text: "La Cité", cls: "district" },
-    { at: [45.8378, 1.2710], text: "Gare", cls: "district" },
-    { at: [45.8446, 1.2440], text: "Beaublanc", cls: "district" },
-    { at: [45.8226, 1.2470], text: "La Vienne", cls: "river" },
-    { at: [45.8238, 1.2560], text: "Pont St-Martial", cls: "bridge" },
-    { at: [45.8249, 1.2690], text: "Pont St-Étienne", cls: "bridge" },
-    { at: [45.8345, 1.2628], text: "Champ de Juillet", cls: "park" },
-  ],
+  async init() {
+    this.loadLocal();
+    const db = await window.claude?.use?.("db").catch(() => null);
+    if (!db) { this.ready = true; return this.emit(); }
+    const user = await window.claude.use("user").catch(() => null);
+    this.db = db;
+    this.mode = "shared";
+    this.uid = (await user?.id()) || null;
+    this.isAdmin = (await user?.canEdit()) || false;
+    this.canWrite = (await user?.can("data.write")) !== false;
+    db.collection("events").onSnapshot((snap) => {
+      this.events = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
+      this.ready = true;
+      this.emit();
+    }, () => { this.ready = true; this.emit(); });
+    const tally = (coll, key) => db.collection(coll).onSnapshot((snap) => {
+      const counts = {};
+      snap.docs.forEach((d) => [].concat(d.data().events || []).forEach((id) => (counts[id] = (counts[id] || 0) + 1)));
+      this[key] = counts;
+      this.mine[key] = [].concat(snap.docs.find((d) => d.id === this.uid)?.data().events || []);
+      this.emit();
+    }, () => {});
+    tally("going", "going");
+    tally("flags", "flags");
+  },
+
+  loadLocal() {
+    const saved = store.get("community", null);
+    this.events = saved?.events || COMMUNITY_SAMPLE.map((e) => ({ ...e }));
+    this.mine = { going: saved?.going || [], flags: saved?.flags || [] };
+    this.going = Object.fromEntries(this.events.map((e) => [e.id, (e.baseGoing || 0) + (this.mine.going.includes(e.id) ? 1 : 0)]));
+    this.flags = {};
+  },
+  saveLocal() {
+    store.set("community", { events: this.events, going: this.mine.going, flags: this.mine.flags });
+    this.going = Object.fromEntries(this.events.map((e) => [e.id, (e.baseGoing || 0) + (this.mine.going.includes(e.id) ? 1 : 0)]));
+  },
+
+  emit() {
+    communityView?.();
+    document.querySelectorAll('[data-w="communaute"]').forEach(fillWidget);
+  },
+
+  // Événements à venir, triés, sans ceux trop signalés
+  upcoming(cat) {
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    return this.events
+      .filter((e) => new Date(e.date) >= today && (this.flags[e.id] || 0) < FLAG_LIMIT && (!cat || e.cat === cat))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  },
+  canDelete(e) { return this.mode === "local" ? e.author === "local" : this.isAdmin || (this.uid && e.author === this.uid); },
+
+  async add(ev) {
+    if (this.mode === "local") {
+      this.events.push({ ...ev, id: "l" + Date.now().toString(36), author: "local" });
+      this.saveLocal();
+      return this.emit();
+    }
+    await this.db.collection("events").add({ ...ev, author: this.uid || "", createdAt: new Date().toISOString() });
+  },
+  async remove(id) {
+    if (this.mode === "local") {
+      this.events = this.events.filter((e) => e.id !== id);
+      this.saveLocal();
+      return this.emit();
+    }
+    await this.db.doc("events/" + id).delete();
+  },
+  async toggle(key, id) {           // key : "going" ou "flags"
+    const list = this.mine[key].includes(id) ? this.mine[key].filter((x) => x !== id) : [...this.mine[key], id];
+    if (this.mode === "local") {
+      this.mine[key] = list;
+      this.saveLocal();
+      return this.emit();
+    }
+    if (!this.uid) throw { code: "no_identity" };
+    await this.db.doc(`${key}/${this.uid}`).set({ events: list });
+  },
 };
 
-function drawPlan() {
-  if (!map || backdrop) return;
-  $("#map").classList.add("offline");
-  const line = (pts, o) => L.polyline(pts, { interactive: false, lineCap: "round", lineJoin: "round", ...o });
-  const label = (l) => L.marker(l.at, { interactive: false, keyboard: false,
-    icon: L.divIcon({ className: "plan-label " + l.cls, html: `<span>${l.text}</span>`, iconSize: null }) });
-  backdrop = L.layerGroup([
-    L.circle([45.8280, 1.2668], { radius: 230, stroke: false, fillColor: "#3A9BDC", fillOpacity: .12, interactive: false }),
-    L.polygon(PLAN.boulevards, { color: "#FFFFFF", weight: 1, opacity: .25, fillColor: "#FFFFFF", fillOpacity: .06, interactive: false }),
-    line(PLAN.boulevards, { color: "#FFFFFF", weight: 6, opacity: .35 }),
-    ...PLAN.parks.map((pts) => L.polygon(pts, { stroke: false, fillColor: "#2FB57A", fillOpacity: .45, interactive: false })),
-    line(PLAN.rail, { color: "#FFFFFF", weight: 2, opacity: .45, dashArray: "6 6" }),
-    line(PLAN.vienne, { color: "#3A9BDC", weight: 22, opacity: .45 }),
-    line(PLAN.vienne, { color: "#8CCBF3", weight: 4, opacity: .95 }),
-    ...PLAN.labels.map(label),
-  ]).addTo(map);
-  backdrop.eachLayer((l) => l.bringToBack?.());
-  const note = document.createElement("p");
-  note.className = "plan-note";
-  note.textContent = "Plan simplifié · fond de carte indisponible";
-  $(".map-wrap")?.appendChild(note);
-}
-
-function destroyMap() {
-  if (map) { map.remove(); map = null; tiles = null; markers = []; routeLine = null; backdrop = null; }
-}
-
-function initMap(param) {
-  if (typeof L === "undefined") {
-    $("#map").innerHTML = `<p class="page-sub" style="padding:120px 24px;text-align:center">La carte nécessite une connexion internet.</p>`;
-    return;
+const writeError = (e) => {
+  if (e?.code === "quota_exceeded") return "La page est pleine : supprimez d'anciens événements avant d'en publier.";
+  if (e?.code === "invalid_argument" || e?.code === "no_identity") {
+    community.canWrite = false;
+    return "Votre accès à cette page est en lecture seule : demandez à son auteur un accès « Contributeur ».";
   }
-  map = L.map("map", { zoomControl: false, attributionControl: true }).setView([45.8315, 1.2600], 15);
-  setTiles();
+  return "Envoi impossible pour le moment, réessayez dans un instant.";
+};
 
-  markers = PLACES.map((p) => {
-    const icon = L.divIcon({
-      className: "", iconSize: [38, 38], iconAnchor: [4, 38],
-      html: `<div class="pin" style="background:${catGradient(p.cat)}">${ic(CATEGORIES[p.cat].icon)}</div>`,
-    });
-    const m = L.marker([p.lat, p.lng], { icon, title: p.name }).on("click", () => focusPlace(p.id, true));
-    m.bindTooltip(p.name, { permanent: true, direction: "right", offset: [14, -22], className: "pin-label" });
-    m.place = p;
-    return m;
-  });
-  const syncLabels = () => $("#map")?.classList.toggle("labels-off", map.getZoom() < 15);
-  map.on("zoomend", syncLabels);
-  syncLabels();
-  $("#zoom-in").onclick = () => map.zoomIn();
-  $("#zoom-out").onclick = () => map.zoomOut();
-  $("#map-cards").addEventListener("click", (ev) => {
-    const c = ev.target.closest("[data-focus]");
-    if (c) focusPlace(c.dataset.focus, false);
-  });
+const parseLocal = (s) => new Date(s.length <= 10 ? s + "T00:00" : s);
 
-  const tour = param?.startsWith("parcours-") ? TOURS.find((t) => "parcours-" + t.id === param) : null;
-  if (tour) showTour(tour);
-  else applyFilter(CATEGORIES[param] ? param : "all");
-
-  $("#map-filters").addEventListener("click", (ev) => {
-    const b = ev.target.closest("[data-filter]");
-    if (b) applyFilter(b.dataset.filter);
-  });
-  $("#locate").addEventListener("click", locate);
+function communityCard(e, compact = false) {
+  const d = parseLocal(e.date), c = COMMUNITY_CATS[e.cat] || COMMUNITY_CATS.autre;
+  const going = community.going[e.id] || 0, mineGoing = community.mine.going.includes(e.id);
+  const time = e.date.length > 10 ? " · " + fmtTime(d) : "";
+  if (compact) {
+    return `<button class="ev" data-event="${esc(e.id)}">
+      <span class="ev-date"><b>${d.getDate()}</b><small>${monthShort(d)}</small></span>
+      <span class="ev-main"><strong class="ev-title">${esc(e.title)}</strong>
+      <span class="ev-sub">${fmtShort(d)}${time} · ${esc(e.place)}</span></span>
+      <span class="going-mini">${going ? `${going} ${ic("flame")}` : ic("arrow")}</span></button>`;
+  }
+  return `<article class="glass post" data-post="${esc(e.id)}">
+    <div class="post-top">
+      <span class="ev-date"><b>${d.getDate()}</b><small>${monthShort(d)}</small></span>
+      <div class="post-head">
+        <p class="eyebrow">${ic(c.icon)} ${c.label}${e.example ? ` · <span class="tag">Exemple</span>` : ""}</p>
+        <h3>${esc(e.title)}</h3>
+        <p class="meta">${fmtShort(d)}${time} · ${esc(e.place)}</p>
+      </div>
+    </div>
+    ${e.desc ? `<p class="post-desc">${esc(e.desc)}</p>` : ""}
+    ${e.org ? `<p class="post-org">Proposé par <b>${esc(e.org)}</b></p>` : ""}
+    <div class="post-actions">
+      <button class="going-btn ${mineGoing ? "on" : ""}" data-going="${esc(e.id)}" aria-pressed="${mineGoing}">
+        ${ic("flame")} ${mineGoing ? "J'y vais" : "Ça m'intéresse"}${going ? ` · ${going}` : ""}</button>
+      <span class="post-more">
+        ${community.canDelete(e) ? `<button class="tool danger" data-delete="${esc(e.id)}" aria-label="Supprimer">${ic("x")}</button>` : ""}
+        <button class="tool" data-flag="${esc(e.id)}" aria-label="Signaler" title="Signaler un contenu inapproprié">${ic("flag")}</button>
+      </span>
+    </div>
+  </article>`;
 }
 
-function applyFilter(cat) {
-  if (routeLine) { map.removeLayer(routeLine); routeLine = null; }
-  document.querySelectorAll("#map-filters [data-filter]").forEach((b) => b.classList.toggle("active", b.dataset.filter === cat));
-  const shown = [];
-  markers.forEach((m) => {
-    const on = cat === "all" || m.place.cat === cat;
-    on ? m.addTo(map) : m.remove();
-    if (on) shown.push(m.getLatLng());
-  });
-  if (shown.length) map.fitBounds(L.latLngBounds(shown), FIT);
-  renderMapCards(markers.filter((m) => cat === "all" || m.place.cat === cat).map((m) => m.place));
+function renderCommunityList(param) {
+  const list = $("#community-list");
+  if (!list) return;
+  const cat = COMMUNITY_CATS[param] ? param : null;
+  const items = community.upcoming(cat);
+  list.innerHTML = !community.ready
+    ? SKEL
+    : items.length ? items.map((e) => communityCard(e)).join("")
+    : `<div class="glass empty-card"><p class="qz-q">Aucun événement ${cat ? "dans cette catégorie " : ""}pour l'instant.</p>
+       <p class="qz-fact">Un concert dans un bar, un vide-grenier, un match de quartier ? Partagez-le en premier.</p></div>`;
+  $("#community-mode").innerHTML = community.mode === "shared"
+    ? `<span class="w-badge live">Partagé</span> Visible en direct par tous les visiteurs de cette page.`
+    : `<span class="w-badge sample">Sur cet appareil</span> Sans serveur, vos événements restent sur ce téléphone.`;
+  list.onclick = onCommunityClick;
 }
 
-// Marges pour que les lieux ne passent pas sous les filtres ni sous la liste du bas
-const FIT = { paddingTopLeft: [30, 70], paddingBottomRight: [30, 190], maxZoom: 16 };
-
-function renderMapCards(places) {
-  $("#map-cards").innerHTML = places.map((p) => `
-    <button class="map-card glass" data-focus="${p.id}">
-      <span class="bubble" style="background:${catGradient(p.cat)}">${ic(CATEGORIES[p.cat].icon)}</span>
-      <span><b>${esc(p.name)}</b><small>${CATEGORIES[p.cat].label} · ${p.rating.toFixed(1)} ★</small></span>
-    </button>`).join("");
+async function onCommunityClick(ev) {
+  const g = ev.target.closest("[data-going]"), f = ev.target.closest("[data-flag]"), d = ev.target.closest("[data-delete]");
+  try {
+    if (g) await community.toggle("going", g.dataset.going);
+    else if (f) {
+      if (!f.dataset.armed) { f.dataset.armed = "1"; f.classList.add("armed"); toast("Touchez encore pour signaler"); return "armed"; }
+      await community.toggle("flags", f.dataset.flag);
+      toast(community.mine.flags.includes(f.dataset.flag) ? "Signalement retiré" : "Merci, c'est signalé");
+    } else if (d) {
+      if (!d.dataset.armed) { d.dataset.armed = "1"; d.classList.add("armed"); toast("Touchez encore pour supprimer"); return "armed"; }
+      await community.remove(d.dataset.delete);
+      closeSheet();
+      toast("Événement supprimé");
+    }
+  } catch (e) {
+    toast(writeError(e));
+  }
 }
 
-// Centre la carte sur un lieu ; depuis une épingle, ouvre aussi sa fiche
-function focusPlace(id, open) {
-  const p = placeById[id];
-  if (!map || !p) return;
-  document.querySelectorAll(".map-card").forEach((c) => c.classList.toggle("active", c.dataset.focus === id));
-  $(`.map-card[data-focus="${id}"]`)?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
-  if (open) return openPlace(id);
-  map.flyTo([p.lat, p.lng], 17, { duration: .6 });
-  setTimeout(() => openPlace(id), 650);
+function renderCommunityWidget() {
+  const items = community.upcoming().slice(0, 3);
+  return `${items.length ? `<div class="ev-list">${items.map((e) => communityCard(e, true)).join("")}</div>`
+    : `<p class="empty">Aucun événement proposé pour l'instant.</p>`}
+    <button class="btn flame block" data-new-event style="margin-top:12px">${ic("plus")} Proposer un événement</button>`;
 }
 
-function showTour(tour) {
-  document.querySelectorAll("#map-filters [data-filter]").forEach((b) => b.classList.remove("active"));
-  markers.forEach((m) => (tour.stops.includes(m.place.id) ? m.addTo(map) : m.remove()));
-  const pts = tour.stops.map((id) => [placeById[id].lat, placeById[id].lng]);
-  routeLine = L.polyline(pts, { color: "#FFD500", weight: 5, opacity: .95, dashArray: "2 10", lineCap: "round" }).addTo(map);
-  map.fitBounds(routeLine.getBounds(), FIT);
-  renderMapCards(tour.stops.map((id) => placeById[id]));
-  toast(`Parcours « ${tour.title} » · ${tour.duration}`);
+function openCommunityEvent(id) {
+  const e = community.events.find((x) => x.id === id);
+  if (!e) return;
+  const sheet = openSheet(`<div class="sheet-head"><h2>Événement</h2><button class="sheet-close" aria-label="Fermer">${ic("x")}</button></div>
+    <div class="sheet-body" style="padding-top:8px">${communityCard(e)}</div>`);
+  sheet.onclick = async (ev) => {
+    if ((await onCommunityClick(ev)) === "armed") return;
+    if (!sheet.hidden && community.events.some((x) => x.id === id)) $(".sheet-body", sheet).innerHTML = communityCard(community.events.find((x) => x.id === id));
+  };
 }
 
-function locate() {
-  if (!navigator.geolocation) return toast("Géolocalisation indisponible");
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      if (!map) return;
-      const ll = [pos.coords.latitude, pos.coords.longitude];
-      L.marker(ll, { icon: L.divIcon({ className: "", html: '<div class="me-dot"></div>', iconSize: [18, 18] }) }).addTo(map);
-      map.setView(ll, 15);
-    },
-    () => toast("Position non autorisée"),
-  );
+function openEventForm() {
+  if (!community.canWrite) return toast(writeError({ code: "invalid_argument" }));
+  const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const sheet = openSheet(`
+    <div class="sheet-head"><h2>Proposer un événement</h2><button class="sheet-close" aria-label="Fermer">${ic("x")}</button></div>
+    <form class="event-form" id="event-form" novalidate>
+      <label for="ev-title">Titre</label>
+      <input class="field" id="ev-title" name="title" maxlength="80" required placeholder="Ex. Vide-grenier du quartier Carnot">
+      <span class="label">Catégorie</span>
+      <div class="cat-pick" role="radiogroup" aria-label="Catégorie">
+        ${Object.entries(COMMUNITY_CATS).map(([k, c], i) => `<label class="chip"><input type="radio" name="cat" value="${k}" ${i === 0 ? "checked" : ""}>${ic(c.icon)} ${c.label}</label>`).join("")}
+      </div>
+      <div class="form-row">
+        <div><label for="ev-date">Date</label><input class="field" type="date" id="ev-date" name="date" min="${today}" value="${today}" required></div>
+        <div><label for="ev-time">Heure <small>(facultatif)</small></label><input class="field" type="time" id="ev-time" name="time"></div>
+      </div>
+      <label for="ev-place">Lieu</label>
+      <input class="field" id="ev-place" name="place" maxlength="80" required placeholder="Ex. Place Jourdan">
+      <label for="ev-org">Organisé par <small>(facultatif)</small></label>
+      <input class="field" id="ev-org" name="org" maxlength="60" placeholder="Votre prénom, association, commerce…">
+      <label for="ev-desc">Description <small>(facultatif)</small></label>
+      <textarea class="field" id="ev-desc" name="desc" maxlength="400" placeholder="Programme, prix, infos pratiques…"></textarea>
+      <p class="form-error" id="ev-error" role="alert"></p>
+      <button class="btn flame block" id="ev-submit">Publier</button>
+      <p class="sheet-note" style="padding:0">${community.mode === "shared"
+        ? "Votre événement sera visible par tous les visiteurs. Soyez respectueux : les contenus signalés 3 fois sont masqués."
+        : "Mode local : l'événement reste sur cet appareil tant que l'app n'a pas de serveur."}</p>
+    </form>`);
+  const form = $("#event-form", sheet), err = $("#ev-error", sheet);
+  form.oninput = () => (err.textContent = "");
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const f = Object.fromEntries(new FormData(form));
+    const title = f.title.trim(), place = f.place.trim();
+    if (title.length < 3) return (err.textContent = "Donnez un titre d'au moins 3 caractères.");
+    if (!f.date || f.date < today) return (err.textContent = "Choisissez une date à partir d'aujourd'hui.");
+    if (place.length < 2) return (err.textContent = "Indiquez le lieu.");
+    err.textContent = "";
+    const btn = $("#ev-submit", sheet);
+    btn.disabled = true;
+    btn.textContent = "Publication…";
+    try {
+      await community.add({
+        title, place, cat: COMMUNITY_CATS[f.cat] ? f.cat : "autre",
+        date: f.time ? `${f.date}T${f.time}` : f.date,
+        org: f.org.trim(), desc: f.desc.trim(),
+      });
+      closeSheet();
+      toast("Événement publié !");
+      if (location.hash.slice(1).split("/")[0] !== "partager") location.hash = "partager";
+    } catch (e2) {
+      err.textContent = writeError(e2);
+      btn.disabled = false;
+      btn.textContent = "Publier";
+    }
+  };
 }
+
+// Ouvrir un événement ou le formulaire depuis n'importe où (widget, agenda)
+document.addEventListener("click", (ev) => {
+  const e = ev.target.closest("[data-event]");
+  if (e && !e.closest(".sheet")) return openCommunityEvent(e.dataset.event);
+  if (ev.target.closest("[data-new-event]") && !editing) openEventForm();
+});
 
 // =========================================================
 // Panneaux : fiche lieu, réglages
@@ -1239,3 +1332,4 @@ function initChat() {
 }
 
 route();
+community.init();
