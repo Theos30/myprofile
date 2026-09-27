@@ -248,10 +248,15 @@ const WIDGETS = {
     title: "Le saviez-vous ?", icon: "bulb", sizes: ["s", "l"], load: loadSavoir, render: renderSavoir,
     desc: "Un lieu ou une tradition de Limoges chaque jour, via Wikipédia.",
   },
+  limodoku: {
+    title: "Limodoku", icon: "grid9", sizes: ["l"], render: renderDokuWidget,
+    desc: "La grille façon Metrodoku avec les lieux de Limoges.",
+    foot: `<a class="w-link" href="#jouer/doku">Jouer ${ic("arrow")}</a>`,
+  },
   quiz: {
     title: "Quiz du jour", icon: "quiz", sizes: ["l"], render: renderQuizWidget,
     desc: "Une question sur Limoges chaque jour.",
-    foot: `<a class="w-link" href="#jouer">Quiz complet ${ic("arrow")}</a>`,
+    foot: `<a class="w-link" href="#jouer/quiz">Quiz complet ${ic("arrow")}</a>`,
   },
   plans: {
     title: "Bons plans", icon: "tag", sizes: ["l"], render: renderDeals, sample: true,
@@ -272,13 +277,19 @@ const WIDGETS = {
 };
 
 const DEFAULT_LAYOUT = [
-  { id: "meteo", size: "s" }, { id: "savoir", size: "s" }, { id: "sport", size: "l" }, { id: "agenda", size: "l" },
+  { id: "meteo", size: "s" }, { id: "savoir", size: "s" }, { id: "limodoku", size: "l" }, { id: "sport", size: "l" }, { id: "agenda", size: "l" },
   { id: "culture", size: "l" }, { id: "quiz", size: "l" }, { id: "plans", size: "l" }, { id: "parcours", size: "l" },
 ];
 const cleanLayout = (list) => list.filter((x, i, a) => WIDGETS[x.id] && a.findIndex((y) => y.id === x.id) === i)
   .map((x) => ({ id: x.id, size: WIDGETS[x.id].sizes.includes(x.size) ? x.size : WIDGETS[x.id].sizes[0] }));
 let layout = cleanLayout(store.get("layout", DEFAULT_LAYOUT));
 const saveLayout = () => store.set("layout", layout);
+// Les pages déjà personnalisées reçoivent le nouveau widget Limodoku une seule fois
+if (store.get("layoutRev", 1) < 2) {
+  if (!layout.some((x) => x.id === "limodoku")) layout.splice(Math.min(2, layout.length), 0, { id: "limodoku", size: "l" });
+  saveLayout();
+  store.set("layoutRev", 2);
+}
 let editing = false;
 
 const SKEL = `<div class="skel"><i></i><i></i><i></i></div>`;
@@ -484,6 +495,11 @@ const screens = {
             <button class="chip" id="locate">${ic("locate")} Autour de moi</button>
           </div>
         </div>
+        <div class="map-zoom glass">
+          <button id="zoom-in" aria-label="Zoomer">${ic("plus")}</button>
+          <button id="zoom-out" aria-label="Dézoomer"><svg class="i" aria-hidden="true"><path d="M5 12h14"/></svg></button>
+        </div>
+        <div class="map-cards hscroll" id="map-cards"></div>
       </div>`;
   },
 
@@ -497,10 +513,15 @@ const screens = {
       <div class="agenda-list" id="agenda-list"><div class="skel" style="margin-top:24px"><i></i><i></i><i></i></div></div>`;
   },
 
-  jouer() {
-    return `<h1 class="page-title">Quiz Limoges</h1>
-      <p class="page-sub">Testez vos connaissances et gagnez des badges.</p>
-      <div id="quiz"></div>`;
+  jouer(param) {
+    const tab = param === "quiz" ? "quiz" : "doku";
+    return `<h1 class="page-title">Jouer</h1>
+      <p class="page-sub">Des jeux pour connaître Limoges par cœur.</p>
+      <div class="chips">
+        <a class="chip ${tab === "doku" ? "active" : ""}" href="#jouer/doku">${ic("grid9")} Limodoku</a>
+        <a class="chip ${tab === "quiz" ? "active" : ""}" href="#jouer/quiz">${ic("quiz")} Quiz</a>
+      </div>
+      <div id="${tab}"></div>`;
   },
 
   guide() {
@@ -572,7 +593,7 @@ const after = {
   },
   carte(param) { initMap(param); },
   agenda(param) { renderAgenda(param); },
-  jouer() { renderQuiz(); },
+  jouer(param) { param === "quiz" ? renderQuiz() : renderDoku(); },
   guide() { initChat(); },
 };
 
@@ -733,19 +754,53 @@ function setTiles() {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>',
     subdomains: "abcd", maxZoom: 19,
   }).addTo(map);
-  tiles.once("tileerror", drawFallbackBackdrop);
+  tiles.once("tileerror", drawPlan);
 }
 
-// Fond de secours quand les tuiles ne chargent pas (hors ligne, réseau filtré)
-function drawFallbackBackdrop() {
+// Plan simplifié dessiné par l'app quand les tuiles ne chargent pas (hors ligne, réseau filtré)
+const PLAN = {
+  vienne: [[45.8236, 1.2300], [45.8232, 1.2400], [45.8238, 1.2480], [45.8247, 1.2560], [45.8252, 1.2615], [45.8258, 1.2675],
+           [45.8268, 1.2740], [45.8285, 1.2800], [45.8305, 1.2860], [45.8330, 1.2940]],
+  boulevards: [[45.8352, 1.2555], [45.8345, 1.2625], [45.8318, 1.2655], [45.8292, 1.2645], [45.8280, 1.2585], [45.8298, 1.2528], [45.8330, 1.2522], [45.8352, 1.2555]],
+  rail: [[45.8363, 1.2680], [45.8420, 1.2692], [45.8490, 1.2660]],
+  parks: [
+    [[45.8284, 1.2652], [45.8284, 1.2690], [45.8268, 1.2692], [45.8266, 1.2656]],   // Jardins de l'Évêché
+    [[45.8352, 1.2648], [45.8354, 1.2678], [45.8336, 1.2684], [45.8333, 1.2652]],   // Champ de Juillet
+    [[45.8406, 1.2578], [45.8406, 1.2606], [45.8390, 1.2608], [45.8390, 1.2578]],   // Parc Victor Thuillat
+  ],
+  labels: [
+    { at: [45.8325, 1.2572], text: "Le Château", cls: "district" },
+    { at: [45.8292, 1.2708], text: "La Cité", cls: "district" },
+    { at: [45.8378, 1.2710], text: "Gare", cls: "district" },
+    { at: [45.8446, 1.2440], text: "Beaublanc", cls: "district" },
+    { at: [45.8226, 1.2470], text: "La Vienne", cls: "river" },
+    { at: [45.8238, 1.2560], text: "Pont St-Martial", cls: "bridge" },
+    { at: [45.8249, 1.2690], text: "Pont St-Étienne", cls: "bridge" },
+    { at: [45.8345, 1.2628], text: "Champ de Juillet", cls: "park" },
+  ],
+};
+
+function drawPlan() {
   if (!map || backdrop) return;
   $("#map").classList.add("offline");
-  const vienne = [[45.8190, 1.2300], [45.8222, 1.2440], [45.8243, 1.2560], [45.8256, 1.2640], [45.8262, 1.2672], [45.8270, 1.2730], [45.8292, 1.2830], [45.8320, 1.2950]];
+  const line = (pts, o) => L.polyline(pts, { interactive: false, lineCap: "round", lineJoin: "round", ...o });
+  const label = (l) => L.marker(l.at, { interactive: false, keyboard: false,
+    icon: L.divIcon({ className: "plan-label " + l.cls, html: `<span>${l.text}</span>`, iconSize: null }) });
   backdrop = L.layerGroup([
-    L.polyline(vienne, { color: "#3A9BDC", weight: 14, opacity: .35, lineCap: "round", interactive: false }),
-    L.polyline(vienne, { color: "#7CC4F2", weight: 3, opacity: .9, interactive: false })
-      .bindTooltip("La Vienne", { permanent: true, direction: "bottom", className: "river-label", offset: [0, 8] }),
+    L.circle([45.8280, 1.2668], { radius: 230, stroke: false, fillColor: "#3A9BDC", fillOpacity: .12, interactive: false }),
+    L.polygon(PLAN.boulevards, { color: "#FFFFFF", weight: 1, opacity: .25, fillColor: "#FFFFFF", fillOpacity: .06, interactive: false }),
+    line(PLAN.boulevards, { color: "#FFFFFF", weight: 6, opacity: .35 }),
+    ...PLAN.parks.map((pts) => L.polygon(pts, { stroke: false, fillColor: "#2FB57A", fillOpacity: .45, interactive: false })),
+    line(PLAN.rail, { color: "#FFFFFF", weight: 2, opacity: .45, dashArray: "6 6" }),
+    line(PLAN.vienne, { color: "#3A9BDC", weight: 22, opacity: .45 }),
+    line(PLAN.vienne, { color: "#8CCBF3", weight: 4, opacity: .95 }),
+    ...PLAN.labels.map(label),
   ]).addTo(map);
+  backdrop.eachLayer((l) => l.bringToBack?.());
+  const note = document.createElement("p");
+  note.className = "plan-note";
+  note.textContent = "Plan simplifié · fond de carte indisponible";
+  $(".map-wrap")?.appendChild(note);
 }
 
 function destroyMap() {
@@ -765,9 +820,19 @@ function initMap(param) {
       className: "", iconSize: [38, 38], iconAnchor: [4, 38],
       html: `<div class="pin" style="background:${catGradient(p.cat)}">${ic(CATEGORIES[p.cat].icon)}</div>`,
     });
-    const m = L.marker([p.lat, p.lng], { icon, title: p.name }).on("click", () => openPlace(p.id));
+    const m = L.marker([p.lat, p.lng], { icon, title: p.name }).on("click", () => focusPlace(p.id, true));
+    m.bindTooltip(p.name, { permanent: true, direction: "right", offset: [14, -22], className: "pin-label" });
     m.place = p;
     return m;
+  });
+  const syncLabels = () => $("#map")?.classList.toggle("labels-off", map.getZoom() < 15);
+  map.on("zoomend", syncLabels);
+  syncLabels();
+  $("#zoom-in").onclick = () => map.zoomIn();
+  $("#zoom-out").onclick = () => map.zoomOut();
+  $("#map-cards").addEventListener("click", (ev) => {
+    const c = ev.target.closest("[data-focus]");
+    if (c) focusPlace(c.dataset.focus, false);
   });
 
   const tour = param?.startsWith("parcours-") ? TOURS.find((t) => "parcours-" + t.id === param) : null;
@@ -790,7 +855,30 @@ function applyFilter(cat) {
     on ? m.addTo(map) : m.remove();
     if (on) shown.push(m.getLatLng());
   });
-  if (shown.length) map.fitBounds(L.latLngBounds(shown).pad(0.3), { maxZoom: 16 });
+  if (shown.length) map.fitBounds(L.latLngBounds(shown), FIT);
+  renderMapCards(markers.filter((m) => cat === "all" || m.place.cat === cat).map((m) => m.place));
+}
+
+// Marges pour que les lieux ne passent pas sous les filtres ni sous la liste du bas
+const FIT = { paddingTopLeft: [30, 70], paddingBottomRight: [30, 190], maxZoom: 16 };
+
+function renderMapCards(places) {
+  $("#map-cards").innerHTML = places.map((p) => `
+    <button class="map-card glass" data-focus="${p.id}">
+      <span class="bubble" style="background:${catGradient(p.cat)}">${ic(CATEGORIES[p.cat].icon)}</span>
+      <span><b>${esc(p.name)}</b><small>${CATEGORIES[p.cat].label} · ${p.rating.toFixed(1)} ★</small></span>
+    </button>`).join("");
+}
+
+// Centre la carte sur un lieu ; depuis une épingle, ouvre aussi sa fiche
+function focusPlace(id, open) {
+  const p = placeById[id];
+  if (!map || !p) return;
+  document.querySelectorAll(".map-card").forEach((c) => c.classList.toggle("active", c.dataset.focus === id));
+  $(`.map-card[data-focus="${id}"]`)?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  if (open) return openPlace(id);
+  map.flyTo([p.lat, p.lng], 17, { duration: .6 });
+  setTimeout(() => openPlace(id), 650);
 }
 
 function showTour(tour) {
@@ -798,7 +886,8 @@ function showTour(tour) {
   markers.forEach((m) => (tour.stops.includes(m.place.id) ? m.addTo(map) : m.remove()));
   const pts = tour.stops.map((id) => [placeById[id].lat, placeById[id].lng]);
   routeLine = L.polyline(pts, { color: "#FFD500", weight: 5, opacity: .95, dashArray: "2 10", lineCap: "round" }).addTo(map);
-  map.fitBounds(routeLine.getBounds().pad(0.35));
+  map.fitBounds(routeLine.getBounds(), FIT);
+  renderMapCards(tour.stops.map((id) => placeById[id]));
   toast(`Parcours « ${tour.title} » · ${tour.duration}`);
 }
 
@@ -978,6 +1067,94 @@ function renderQuiz(state = { i: 0, score: 0, answered: false }) {
       $("#next").onclick = () => renderQuiz({ i: state.i + 1, score: state.score, answered: false });
     };
   });
+}
+
+// =========================================================
+// Limodoku (grille façon Metrodoku)
+// =========================================================
+const dokuPlace = (id) => DOKU.places.find((p) => p.id === id);
+const dokuState = () => store.get("doku", { cells: {}, errors: 0 });
+const zoneText = (zone) => DOKU.rows.find((r) => r.id === zone)?.text || DOKU.outside;
+const dokuFits = (p, ri, ci) => p.zone === DOKU.rows[ri].id && p.tags.includes(DOKU.cols[ci].id);
+
+function renderDokuWidget() {
+  const st = dokuState(), n = Object.keys(st.cells).length;
+  const mini = [0, 1, 2].map((r) => [0, 1, 2].map((c) => `<i class="${st.cells[`${r}-${c}`] ? "on" : ""}"></i>`).join("")).join("");
+  const line = n === 9 ? "Grille terminée, bravo !" : n ? `Grille en cours : ${n}/9` : "Placez 9 lieux de Limoges dans la grille.";
+  return `<div class="doku-mini-wrap"><div class="doku-mini" aria-hidden="true">${mini}</div>
+    <div><p class="qz-q">${line}</p><p class="qz-fact">Chaque lieu doit correspondre à sa ligne et à sa colonne, comme le Metrodoku.</p></div></div>`;
+}
+
+function renderDoku(popKey) {
+  const root = $("#doku");
+  if (!root) return;
+  const st = dokuState(), filled = Object.keys(st.cells).length;
+  const head = (x, cls) => `<div class="doku-head ${cls}"><b>${x.label}</b><small>${x.hint}</small></div>`;
+  const cells = DOKU.rows.map((r, ri) => head(r, "row") + DOKU.cols.map((c, ci) => {
+    const key = `${ri}-${ci}`, p = st.cells[key] && dokuPlace(st.cells[key]);
+    return p
+      ? `<div class="doku-cell ok ${key === popKey ? "pop" : ""}">${ic(p.icon)}<span>${esc(p.name.replace(/ \(.*\)$/, ""))}</span></div>`
+      : `<button class="doku-cell" data-cell="${key}" aria-label="Case ${r.label} et ${c.label}">${ic("plus")}</button>`;
+  }).join("")).join("");
+  root.innerHTML = `
+    <div class="glass doku-card">
+      <div class="doku-top"><span>${filled}/9 cases</span><span>${st.errors} erreur${st.errors > 1 ? "s" : ""}</span></div>
+      <div class="doku-grid">
+        <div class="doku-corner"><svg><use href="#logo"/></svg></div>
+        ${DOKU.cols.map((c) => head(c, "col")).join("")}
+        ${cells}
+      </div>
+      ${filled === 9
+        ? `<div class="doku-win">${ic("flame")} Bravo ! Grille terminée avec ${st.errors} erreur${st.errors > 1 ? "s" : ""}.</div>`
+        : `<p class="doku-help">Touchez une case, puis choisissez un lieu qui correspond à sa ligne <b>et</b> à sa colonne. Chaque lieu ne sert qu'une fois.</p>`}
+      <div class="doku-actions"><button class="btn ghost" id="doku-reset">${ic("refresh")} Recommencer</button></div>
+    </div>`;
+  root.querySelectorAll("[data-cell]").forEach((b) => (b.onclick = () => openDokuPicker(b.dataset.cell)));
+  $("#doku-reset").onclick = () => { store.set("doku", { cells: {}, errors: 0 }); renderDoku(); };
+}
+
+function openDokuPicker(key) {
+  const [ri, ci] = key.split("-").map(Number);
+  const r = DOKU.rows[ri], c = DOKU.cols[ci];
+  const used = new Set(Object.values(dokuState().cells));
+  const sheet = openSheet(`
+    <div class="sheet-head"><div><p class="eyebrow">${r.label} × ${c.label}</p><h2>Choisissez un lieu</h2></div>
+      <button class="sheet-close" aria-label="Fermer">${ic("x")}</button></div>
+    <p class="sheet-note"><button class="text-btn" id="doku-hint">${ic("bulb")} Besoin d'un indice ?</button></p>
+    <p class="doku-feedback" id="doku-fb" role="status"></p>
+    <div class="opt-list">${DOKU.places.filter((p) => !used.has(p.id)).map((p) => `
+      <button class="opt-row" data-pick="${p.id}"><span class="bubble">${ic(p.icon)}</span><span><b>${esc(p.name)}</b></span>${ic("arrow")}</button>`).join("")}
+    </div>`);
+  const fb = $("#doku-fb", sheet);
+  sheet.onclick = (e) => {
+    if (e.target.closest("#doku-hint")) {
+      const ok = DOKU.places.find((p) => !used.has(p.id) && dokuFits(p, ri, ci));
+      fb.className = "doku-feedback hint";
+      fb.textContent = ok ? `Essayez : ${ok.name}.` : "Aucun lieu restant ne convient : recommencez la grille.";
+      sheet.scrollTop = 0;
+      return;
+    }
+    const b = e.target.closest("[data-pick]");
+    if (!b) return;
+    const p = dokuPlace(b.dataset.pick), st = dokuState();
+    if (dokuFits(p, ri, ci)) {
+      st.cells[key] = p.id;
+      store.set("doku", st);
+      closeSheet();
+      renderDoku(key);
+      toast(Object.keys(st.cells).length === 9 ? "Grille terminée !" : "Bien vu !");
+      return;
+    }
+    st.errors++;
+    store.set("doku", st);
+    const why = [];
+    if (p.zone !== r.id) why.push(`est ${zoneText(p.zone)}, pas ${r.text}`);
+    if (!p.tags.includes(c.id)) why.push(c.fail);
+    fb.className = "doku-feedback bad";
+    fb.textContent = `Raté : ${p.name.replace(/ \(.*\)$/, "")} ${why.join(" et ")}.`;
+    b.classList.remove("shake"); void b.offsetWidth; b.classList.add("shake");
+    sheet.scrollTop = 0;
+  };
 }
 
 // =========================================================

@@ -188,3 +188,34 @@ const QUIZ = [
     fact: "Cette tradition inscrite au patrimoine immatériel de l'UNESCO revient tous les sept ans.",
   },
 ];
+
+// Limodoku : grille 3×3 façon Metrodoku. Un lieu va dans une case s'il correspond
+// à la ligne (quartier) ET à la colonne (critère). Chaque lieu ne sert qu'une fois.
+const DOKU = {
+  rows: [
+    { id: "cite",    label: "La Cité",         hint: "Quartier de la cathédrale", text: "dans la Cité" },
+    { id: "chateau", label: "Le Château",      hint: "Saint-Martial, Halles, Boucherie", text: "dans le Château" },
+    { id: "vienne",  label: "Bords de Vienne", hint: "Sur la rivière ou sa rive", text: "au bord de la Vienne" },
+  ],
+  cols: [
+    { id: "prenom", label: "Un prénom",   hint: "dans le nom du lieu",  fail: "n'a pas de prénom dans son nom" },
+    { id: "feu",    label: "Arts du feu", hint: "porcelaine ou émail",  fail: "n'est pas lié à la porcelaine ni à l'émail" },
+    { id: "air",    label: "Plein air",   hint: "rue, jardin, pont…",   fail: "n'est pas en plein air" },
+  ],
+  outside: "hors du centre historique",
+  places: [
+    { id: "cathedrale", name: "Cathédrale Saint-Étienne",      icon: "landmark", zone: "cite",    tags: ["prenom"] },
+    { id: "jardins",    name: "Jardins de l'Évêché",           icon: "tree",     zone: "cite",    tags: ["air"] },
+    { id: "beauxarts",  name: "Musée des Beaux-Arts (émaux)",  icon: "palette",  zone: "cite",    tags: ["feu"] },
+    { id: "stmichel",   name: "Église Saint-Michel-des-Lions", icon: "landmark", zone: "chateau", tags: ["prenom"] },
+    { id: "staurelien", name: "Chapelle Saint-Aurélien",       icon: "landmark", zone: "chateau", tags: ["prenom"] },
+    { id: "halles",     name: "Halles centrales (frise en porcelaine)", icon: "utensils", zone: "chateau", tags: ["feu"] },
+    { id: "boucherie",  name: "Rue de la Boucherie",           icon: "route",    zone: "chateau", tags: ["air"] },
+    { id: "pontste",    name: "Pont Saint-Étienne",            icon: "route",    zone: "vienne",  tags: ["prenom", "air"] },
+    { id: "pontstm",    name: "Pont Saint-Martial",            icon: "route",    zone: "vienne",  tags: ["prenom", "air"] },
+    { id: "casseaux",   name: "Four des Casseaux (porcelaine)", icon: "flame",   zone: "vienne",  tags: ["feu"] },
+    { id: "dubouche",   name: "Musée Adrien Dubouché",         icon: "palette",  zone: null,      tags: ["prenom", "feu"] },
+    { id: "gare",       name: "Gare des Bénédictins",          icon: "landmark", zone: null,      tags: [] },
+    { id: "thuillat",   name: "Parc Victor Thuillat",          icon: "tree",     zone: null,      tags: ["prenom", "air"] },
+  ],
+};
