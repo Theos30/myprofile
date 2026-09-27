@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Limoges — L'app de la ville</title>
+  <meta name="description" content="Découvrir, s'informer, partager : tout Limoges dans une seule application.">
+  <meta name="theme-color" content="#244E9B">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Logo réutilisable -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <radialGradient id="g-sphere" cx="45%" cy="30%" r="70%">
+        <stop offset="0" stop-color="#EAF5FF"/>
+        <stop offset=".45" stop-color="#4FA8E6"/>
+        <stop offset="1" stop-color="#1F74C4"/>
+      </radialGradient>
+      <linearGradient id="g-flame" x1="0" y1="1" x2=".75" y2="0">
+        <stop offset="0" stop-color="#E3161B"/>
+        <stop offset=".55" stop-color="#E3161B"/>
+        <stop offset=".8" stop-color="#F39200"/>
+        <stop offset="1" stop-color="#FFD500"/>
+      </linearGradient>
+      <symbol id="logo" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" r="50" fill="#244E9B"/>
+        <circle cx="50" cy="22" r="12.5" fill="url(#g-sphere)"/>
+        <path d="M34 25 L37 21 L36 29 Z" fill="#F7A600"/>
+        <path d="M22 62 L36 37 L39 59 L50 36 L55 60 L66 24 C73 46 72 72 63 92 C47 84 31 74 22 62 Z" fill="url(#g-flame)"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <div class="shell">
+    <header class="topbar">
+      <a href="#accueil" class="brand" aria-label="Accueil">
+        <svg class="brand-logo"><use href="#logo"/></svg>
+        <span class="brand-text">
+          <strong>LIMOGES</strong>
+          <small><em>Arts du feu</em> et innovation</small>
+        </span>
+      </a>
+      <button class="icon-btn" id="theme-toggle" aria-label="Changer de thème">
+        <span class="ico-sun">☀️</span><span class="ico-moon">🌙</span>
+      </button>
+    </header>
+
+    <main id="view" tabindex="-1"></main>
+
+    <nav class="tabbar" aria-label="Navigation principale">
+      <a href="#accueil" data-tab="accueil"><span class="tab-ico">⌂</span><span>Accueil</span></a>
+      <a href="#carte" data-tab="carte"><span class="tab-ico">◎</span><span>Carte</span></a>
+      <a href="#agenda" data-tab="agenda"><span class="tab-ico">▦</span><span>Agenda</span></a>
+      <a href="#jouer" data-tab="jouer"><span class="tab-ico">✦</span><span>Jouer</span></a>
+      <a href="#guide" data-tab="guide"><span class="tab-ico">✧</span><span>Guide</span></a>
+    </nav>
+
+    <div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+    <section class="sheet" id="sheet" aria-modal="true" role="dialog" hidden></section>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
