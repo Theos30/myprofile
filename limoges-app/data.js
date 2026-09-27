@@ -1,17 +1,18 @@
-// Données d'exemple pour la V1 — à remplacer par une vraie source (API, CMS).
+// Données de l'app. Les listes "…_SAMPLE" et les événements servent d'exemples
+// quand les sources en direct ne répondent pas (hors ligne, réseau filtré).
 
 const CATEGORIES = {
-  patrimoine: { label: "Patrimoine", icon: "🏛️", color: "var(--blue)" },
-  culture:    { label: "Culture",    icon: "🎭", color: "var(--sky)" },
-  resto:      { label: "Restos",     icon: "🍽️", color: "var(--red)" },
-  nature:     { label: "Plein air",  icon: "🌳", color: "var(--green)" },
-  sport:      { label: "Sport",      icon: "🏀", color: "var(--orange)" },
-  shopping:   { label: "Commerces",  icon: "🛍️", color: "var(--yellow-deep)" },
+  patrimoine: { label: "Patrimoine", icon: "landmark", color: "var(--blue)" },
+  culture:    { label: "Culture",    icon: "palette",  color: "var(--sky)" },
+  resto:      { label: "Restos",     icon: "utensils", color: "var(--red)" },
+  nature:     { label: "Plein air",  icon: "tree",     color: "var(--green)" },
+  sport:      { label: "Sport",      icon: "trophy",   color: "var(--orange)" },
+  shopping:   { label: "Commerces",  icon: "bag",      color: "var(--yellow-deep)" },
 };
 
 const PLACES = [
   {
-    id: "gare", name: "Gare des Bénédictins", cat: "patrimoine",
+    id: "gare", name: "Gare des Bénédictins", cat: "patrimoine", photo: true,
     lat: 45.8363, lng: 1.2680, rating: 4.8, reviews: 312,
     desc: "Inaugurée en 1929, son campanile Art déco est l'un des symboles de Limoges et régulièrement citée parmi les plus belles gares de France.",
     tags: ["Art déco", "Incontournable"],
@@ -90,6 +91,7 @@ const PLACES = [
   },
 ];
 
+// Exemples d'événements (remplacés par l'agenda OpenAgenda quand il répond)
 const EVENTS = [
   { id: "e1", title: "Match Limoges CSP", place: "beaublanc", date: "2026-10-03T20:00", cat: "sport", price: "Dès 15 €" },
   { id: "e2", title: "Nuit des arts du feu", place: "dubouche", date: "2026-10-10T19:00", cat: "culture", price: "Gratuit" },
@@ -97,6 +99,9 @@ const EVENTS = [
   { id: "e4", title: "Concert symphonique", place: "opera", date: "2026-10-17T20:30", cat: "culture", price: "Dès 20 €" },
   { id: "e5", title: "Balade contée médiévale", place: "boucherie", date: "2026-10-11T15:00", cat: "patrimoine", price: "8 €" },
   { id: "e6", title: "Run des bords de Vienne", place: "pont", date: "2026-10-18T09:30", cat: "sport", price: "Gratuit" },
+  { id: "e7", title: "Exposition « Porcelaine contemporaine »", place: "dubouche", date: "2026-10-01T10:00", cat: "culture", price: "7 €" },
+  { id: "e8", title: "Visite guidée de la cathédrale", place: "cathedrale", date: "2026-10-05T14:30", cat: "patrimoine", price: "Gratuit" },
+  { id: "e9", title: "Émaux : atelier découverte", place: "beauxarts", date: "2026-10-08T15:00", cat: "culture", price: "12 €" },
 ];
 
 const NEWS = [
@@ -116,6 +121,39 @@ const TOURS = [
   { id: "t1", title: "Limoges médiéval", duration: "1 h 30", km: "2,1 km", stops: ["boucherie", "halles", "cathedrale", "pont"], gradient: "var(--flame)" },
   { id: "t2", title: "Arts du feu", duration: "2 h", km: "3,4 km", stops: ["dubouche", "beauxarts", "gare"], gradient: "var(--ocean)" },
   { id: "t3", title: "Limoges au vert", duration: "1 h", km: "1,8 km", stops: ["eveche", "pont", "thuillat"], gradient: "var(--forest)" },
+];
+
+// Équipes suivies par le widget Sport (recherchées sur TheSportsDB)
+const TEAMS = [
+  { id: "csp",  name: "Limoges CSP",      query: "Limoges CSP",      sport: "Basketball", label: "Basket",   short: "CSP", color: "#0E7C3A" },
+  { id: "hand", name: "Limoges Handball", query: "Limoges Handball", sport: "Handball",   label: "Handball", short: "LH",  color: "#E3161B" },
+  { id: "lfc",  name: "Limoges FC",       query: "Limoges FC",       sport: "Soccer",     label: "Football", short: "LFC", color: "#3A9BDC" },
+];
+
+const SPORT_SAMPLE = {
+  csp:  { league: "Basket · Betclic Élite", last: { opp: "Le Mans", my: 84, their: 79, date: "2026-09-26T20:00" }, next: { opp: "Cholet", date: "2026-10-03T20:00", home: true } },
+  hand: { league: "Handball · Starligue",   last: { opp: "Nantes",  my: 29, their: 31, date: "2026-09-25T20:00" }, next: { opp: "Chambéry", date: "2026-10-02T20:00", home: true } },
+  lfc:  { league: "Football",               last: { opp: "Tulle",   my: 1,  their: 1,  date: "2026-09-27T15:00" }, next: { opp: "Brive", date: "2026-10-04T18:00", home: false } },
+};
+
+const WEATHER_SAMPLE = {
+  temp: 17, code: 2, wind: 12,
+  days: [
+    { date: "2026-09-27", code: 2, min: 10, max: 19 },
+    { date: "2026-09-28", code: 61, min: 11, max: 16 },
+    { date: "2026-09-29", code: 1, min: 9, max: 20 },
+  ],
+};
+
+// Articles Wikipédia du widget « Le saviez-vous ? » (un par jour)
+const SAVOIR_TITLES = [
+  "Gare de Limoges-Bénédictins",
+  "Porcelaine de Limoges",
+  "Cathédrale Saint-Étienne de Limoges",
+  "Musée national Adrien-Dubouché",
+  "Limoges CSP",
+  "Ostensions limousines",
+  "Émail de Limoges",
 ];
 
 const QUIZ = [

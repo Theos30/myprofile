@@ -1,13 +1,15 @@
-// Limoges — app V1 (carte, agenda, bons plans, parcours, quiz, guide)
+// Limoges — app : Ma page (widgets personnalisables), carte, agenda, quiz, guide
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const view = $("#view");
 const placeById = Object.fromEntries(PLACES.map((p) => [p.id, p]));
 
-const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const safeUrl = (u) => (/^https?:\/\//i.test(u || "") ? u : "");
+const ic = (name, cls = "") => `<svg class="i ${cls}" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 
-// ---------- Stockage local (préférences, favoris, avis, score) ----------
+// ---------- Stockage local (préférences de l'appareil) ----------
 const store = {
   get(key, fallback) {
     try { const v = localStorage.getItem("lim:" + key); return v ? JSON.parse(v) : fallback; }
@@ -18,15 +20,24 @@ const store = {
   },
 };
 
-// ---------- Utilitaires ----------
+// ---------- Dates ----------
 const fmtDay = (d) => d.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
+const fmtShort = (d) => d.toLocaleDateString("fr-FR", { weekday: "short", day: "numeric", month: "short" });
+const fmtDM = (d) => d.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 const fmtTime = (d) => d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
-const stars = (n) => "★".repeat(Math.round(n)) + "☆".repeat(5 - Math.round(n));
+const monthShort = (d) => d.toLocaleDateString("fr-FR", { month: "short" }).replace(".", "");
+const hasTime = (d) => d.getHours() !== 0 || d.getMinutes() !== 0;
+const dayIndex = () => { const n = new Date(); return Math.floor((n - new Date(n.getFullYear(), 0, 0)) / 864e5); };
+
+const stars = (n) => {
+  const r = Math.round(n);
+  return `<span class="stars" aria-label="${n} sur 5">${[1, 2, 3, 4, 5].map((k) => ic("star", k <= r ? "" : "off")).join("")}</span>`;
+};
 const catGradient = (cat) => ({
   patrimoine: "var(--ocean)", culture: "linear-gradient(145deg, var(--blue), var(--sky))",
   resto: "var(--flame)", nature: "var(--forest)",
   sport: "linear-gradient(145deg, var(--red), var(--orange))",
-  shopping: "linear-gradient(145deg, var(--orange), var(--yellow))",
+  shopping: "linear-gradient(145deg, var(--orange), var(--yellow-deep))",
 }[cat]);
 
 function toast(msg) {
@@ -37,134 +48,453 @@ function toast(msg) {
   toast._t = setTimeout(() => t.classList.remove("show"), 2200);
 }
 
-// ---------- Thème ----------
+// ---------- Ambiance (Bleu / Nuit) ----------
 (function initTheme() {
+  const root = document.documentElement;
   const saved = store.get("theme", null);
-  const system = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  document.documentElement.dataset.theme = saved || system;
+  if (saved) root.dataset.theme = saved;
+  else if (!root.dataset.theme) root.dataset.theme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   $("#theme-toggle").addEventListener("click", () => {
-    const next = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
-    document.documentElement.dataset.theme = next;
+    const next = root.dataset.theme === "dark" ? "light" : "dark";
+    root.dataset.theme = next;
     store.set("theme", next);
     if (map) setTiles();
   });
 })();
 
 // =========================================================
+// Sources en direct (avec repli sur des exemples)
+// =========================================================
+async function getJSON(url, ms = 8000) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Une source est chargée une fois puis gardée 10 minutes.
+// Résultat : { live: true, data } ou, en cas d'échec, { live: false, data: exemple }.
+const sources = {};
+function source(key, loader, sample) {
+  const c = sources[key];
+  if (c && Date.now() - c.at < 10 * 60e3) return c.promise;
+  const promise = loader()
+    .then((data) => ({ live: true, data }))
+    .catch((err) => {
+      console.info(`[${key}] source indisponible, exemples affichés :`, err.message);
+      return { live: false, data: sample() };
+    });
+  sources[key] = { at: Date.now(), promise };
+  return promise;
+}
+
+// --- Météo : Open-Meteo (gratuit, sans clé) ---
+const WX = [
+  [0, "sun", "Ensoleillé"], [1, "cloud-sun", "Plutôt ensoleillé"], [2, "cloud-sun", "Éclaircies"], [3, "cloud", "Couvert"],
+  [48, "cloud", "Brouillard"], [57, "rain", "Bruine"], [67, "rain", "Pluie"], [77, "snow", "Neige"],
+  [82, "rain", "Averses"], [86, "snow", "Averses de neige"], [99, "storm", "Orages"],
+];
+const wxInfo = (code) => { const e = WX.find(([max]) => code <= max) || WX[WX.length - 1]; return { icon: e[1], label: e[2] }; };
+
+const loadWeather = () => source("meteo", async () => {
+  const j = await getJSON("https://api.open-meteo.com/v1/forecast?latitude=45.8336&longitude=1.2611"
+    + "&current=temperature_2m,weather_code,wind_speed_10m"
+    + "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=Europe%2FParis&forecast_days=3");
+  return {
+    temp: Math.round(j.current.temperature_2m), code: j.current.weather_code, wind: Math.round(j.current.wind_speed_10m),
+    days: j.daily.time.map((date, i) => ({
+      date, code: j.daily.weather_code[i],
+      min: Math.round(j.daily.temperature_2m_min[i]), max: Math.round(j.daily.temperature_2m_max[i]),
+    })),
+  };
+}, () => WEATHER_SAMPLE);
+
+// --- Sport : TheSportsDB (clé publique gratuite) ---
+const SPORTSDB = "https://www.thesportsdb.com/api/v1/json/123";
+const num = (v) => (v === null || v === undefined || v === "" ? null : Number(v));
+const getTeams = () => {
+  const ids = store.get("teams", ["csp", "hand"]).filter((id) => TEAMS.some((t) => t.id === id));
+  return ids.length ? ids : ["csp"];
+};
+const sampleTeam = (id) => {
+  const t = TEAMS.find((x) => x.id === id), s = SPORT_SAMPLE[id];
+  return { ...t, league: s.league, badge: "", last: { ...s.last, home: true }, next: s.next, live: false };
+};
+
+async function fetchTeam(t) {
+  const s = await getJSON(`${SPORTSDB}/searchteams.php?t=${encodeURIComponent(t.query)}`);
+  const found = s.teams || [];
+  const team = found.find((x) => x.strSport === t.sport) || found[0];
+  if (!team) throw new Error("équipe introuvable");
+  const [last, next] = await Promise.all([
+    getJSON(`${SPORTSDB}/eventslast.php?id=${team.idTeam}`).catch(() => ({})),
+    getJSON(`${SPORTSDB}/eventsnext.php?id=${team.idTeam}`).catch(() => ({})),
+  ]);
+  const toMatch = (ev) => {
+    if (!ev) return null;
+    const home = ev.idHomeTeam === team.idTeam;
+    const ts = ev.strTimestamp;
+    const date = ts ? new Date(/(z|[+-]\d\d:?\d\d)$/i.test(ts) ? ts : ts + "Z")
+                    : new Date(`${ev.dateEvent}T${(ev.strTime || "00:00:00").slice(0, 8)}`);
+    return {
+      opp: home ? ev.strAwayTeam : ev.strHomeTeam, home, date: date.toISOString(),
+      my: num(home ? ev.intHomeScore : ev.intAwayScore), their: num(home ? ev.intAwayScore : ev.intHomeScore),
+    };
+  };
+  const lastEv = (last.results || []).slice().sort((a, b) => (b.dateEvent || "").localeCompare(a.dateEvent || ""))[0];
+  return {
+    ...t, name: team.strTeam || t.name,
+    league: [t.label, team.strLeague].filter(Boolean).join(" · "),
+    badge: safeUrl(team.strBadge || team.strTeamBadge),
+    last: toMatch(lastEv), next: toMatch((next.events || [])[0]), live: true,
+  };
+}
+
+function loadSport(ids = getTeams()) {
+  return source("sport:" + ids.join(","), async () => {
+    const teams = await Promise.all(ids.map((id) => fetchTeam(TEAMS.find((t) => t.id === id)).catch(() => sampleTeam(id))));
+    if (!teams.some((t) => t.live)) throw new Error("aucune équipe trouvée");
+    return teams;
+  }, () => ids.map(sampleTeam));
+}
+
+// --- Événements et culture : OpenAgenda (jeu de données public sur OpenDataSoft) ---
+const ODS = "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/evenements-publics-openagenda/records";
+const SPORT_RX = /\bmatch|sport|\bcourse|\brun\b|trail|marathon|basket|handball|football|rugby|tennis|v[ée]lo|randonn|natation|tournoi|yoga/i;
+const CULTURE_RX = /expo|mus[ée]e|concert|th[ée][âa]tre|spectacle|danse|cin[ée]ma|projection|film|festival|op[ée]ra|lecture|conf[ée]rence|patrimoine|visite|atelier|livre|litt[ée]ra|musique|\barts?\b|artiste|photo|jazz|chorale|orchestre|porcelaine|[ée]mail/i;
+const classify = (text) => (SPORT_RX.test(text) ? "sport" : CULTURE_RX.test(text) ? "culture" : "autre");
+
+async function fetchEvents() {
+  const attempts = [`location_city="Limoges" and lastdate_end >= now()`, `location_city="Limoges"`];
+  let rows = null, lastErr = null;
+  for (const where of attempts) {
+    try {
+      const j = await getJSON(`${ODS}?${new URLSearchParams({ where, order_by: "firstdate_begin", limit: "60" })}`);
+      rows = j.results || [];
+      break;
+    } catch (e) { lastErr = e; }
+  }
+  if (!rows) throw lastErr;
+  const cutoff = Date.now() - 6 * 3600e3;
+  const seen = new Set();
+  const items = rows.map((r) => {
+    const title = r.title_fr || r.title || "";
+    const start = new Date(r.firstdate_begin);
+    const end = new Date(r.lastdate_end || r.firstdate_end || r.firstdate_begin);
+    const kw = [].concat(r.keywords_fr || []).join(" ");
+    return {
+      title, start, end, place: r.location_name || "Limoges",
+      url: safeUrl(r.canonicalurl), kind: classify(`${title} ${kw} ${r.description_fr || ""}`),
+    };
+  }).filter((e) => {
+    if (!e.title || isNaN(e.start) || e.end < cutoff || seen.has(e.title)) return false;
+    seen.add(e.title);
+    return true;
+  });
+  if (!items.length) throw new Error("aucun événement à venir");
+  return items.sort((a, b) => whenOf(a) - whenOf(b));
+}
+
+const sampleEvents = () => EVENTS.map((e) => {
+  const p = placeById[e.place], d = new Date(e.date);
+  const kind = e.cat === "sport" ? "sport" : (e.cat === "culture" || e.cat === "patrimoine") ? "culture" : "autre";
+  return { title: e.title, start: d, end: d, place: p.name, placeId: p.id, url: "", kind };
+}).sort((a, b) => a.start - b.start);
+
+const loadEvents = () => source("events", fetchEvents, sampleEvents);
+const isOngoing = (e) => e.start < Date.now() && e.end > Date.now() && e.end - e.start > 864e5;
+const whenOf = (e) => (isOngoing(e) ? new Date(Math.max(Date.now(), e.start)) : e.start);
+
+// --- Le saviez-vous : résumé Wikipédia ---
+const loadSavoir = () => source("savoir", async () => {
+  const title = SAVOIR_TITLES[dayIndex() % SAVOIR_TITLES.length];
+  const j = await getJSON(`https://fr.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title.replace(/ /g, "_"))}`);
+  if (!j.extract) throw new Error("résumé vide");
+  return { title: j.title, text: j.extract, img: safeUrl(j.thumbnail?.source), url: safeUrl(j.content_urls?.mobile?.page || j.content_urls?.desktop?.page) };
+}, () => {
+  const p = PLACES[dayIndex() % PLACES.length];
+  return { title: p.name, text: p.desc, img: "", url: "", placeId: p.id };
+});
+
+// =========================================================
+// Widgets
+// =========================================================
+const WIDGETS = {
+  meteo: {
+    title: "Météo", icon: "sun", sizes: ["s", "l"], load: loadWeather, render: renderWeather,
+    desc: "Température et prévisions sur trois jours.",
+  },
+  sport: {
+    title: "Sport à Limoges", icon: "trophy", sizes: ["l"], load: () => loadSport(), render: renderSport, settings: openTeamSettings,
+    desc: "Résultats et prochains matchs du CSP, du handball et du foot.",
+    foot: `<a class="w-link" href="#agenda/sport">Agenda sportif ${ic("arrow")}</a>`,
+  },
+  agenda: {
+    title: "Événements", icon: "calendar", sizes: ["s", "l"], load: loadEvents, render: (d, size) => renderEvents(d, size, null),
+    desc: "Les prochains rendez-vous en ville.",
+    foot: `<a class="w-link" href="#agenda">Tout l'agenda ${ic("arrow")}</a>`,
+  },
+  culture: {
+    title: "Culture", icon: "palette", sizes: ["s", "l"], load: loadEvents, render: (d, size) => renderEvents(d, size, "culture"),
+    desc: "Expositions, concerts et spectacles depuis l'agenda en ligne.",
+    foot: `<a class="w-link" href="#agenda/culture">Toute la culture ${ic("arrow")}</a>`,
+  },
+  savoir: {
+    title: "Le saviez-vous ?", icon: "bulb", sizes: ["s", "l"], load: loadSavoir, render: renderSavoir,
+    desc: "Un lieu ou une tradition de Limoges chaque jour, via Wikipédia.",
+  },
+  quiz: {
+    title: "Quiz du jour", icon: "quiz", sizes: ["l"], render: renderQuizWidget,
+    desc: "Une question sur Limoges chaque jour.",
+    foot: `<a class="w-link" href="#jouer">Quiz complet ${ic("arrow")}</a>`,
+  },
+  plans: {
+    title: "Bons plans", icon: "tag", sizes: ["l"], render: renderDeals, sample: true,
+    desc: "Promotions des commerces de la ville.",
+  },
+  parcours: {
+    title: "Parcours", icon: "route", sizes: ["l"], render: renderTours,
+    desc: "Balades guidées à suivre sur la carte.",
+  },
+  actus: {
+    title: "Actualités", icon: "news", sizes: ["l"], render: renderNews, sample: true,
+    desc: "Les nouvelles de la ville et des quartiers.",
+  },
+  explorer: {
+    title: "Explorer", icon: "compass", sizes: ["l"], render: renderExplorer,
+    desc: "Les lieux de Limoges par catégorie.",
+  },
+};
+
+const DEFAULT_LAYOUT = [
+  { id: "meteo", size: "s" }, { id: "savoir", size: "s" }, { id: "sport", size: "l" }, { id: "agenda", size: "l" },
+  { id: "culture", size: "l" }, { id: "quiz", size: "l" }, { id: "plans", size: "l" }, { id: "parcours", size: "l" },
+];
+const cleanLayout = (list) => list.filter((x, i, a) => WIDGETS[x.id] && a.findIndex((y) => y.id === x.id) === i)
+  .map((x) => ({ id: x.id, size: WIDGETS[x.id].sizes.includes(x.size) ? x.size : WIDGETS[x.id].sizes[0] }));
+let layout = cleanLayout(store.get("layout", DEFAULT_LAYOUT));
+const saveLayout = () => store.set("layout", layout);
+let editing = false;
+
+const SKEL = `<div class="skel"><i></i><i></i><i></i></div>`;
+
+function renderWeather(d, size) {
+  const now = wxInfo(d.code), today = d.days[0] || { min: "–", max: "–" };
+  const days = size === "l" ? `<div class="wx-days">${d.days.map((day, i) => {
+    const w = wxInfo(day.code);
+    const label = i === 0 ? "Auj." : new Date(day.date + "T12:00").toLocaleDateString("fr-FR", { weekday: "short" });
+    return `<div class="wx-day"><b>${label}</b>${ic(w.icon)}<span>${day.min}° / ${day.max}°</span></div>`;
+  }).join("")}</div>` : "";
+  return `<div class="wx"><div><div class="wx-temp">${d.temp}°</div><div class="wx-label">${now.label}</div></div>${ic(now.icon)}</div>
+    <div class="wx-range">Max ${today.max}° · Min ${today.min}°</div>${days}`;
+}
+
+function renderSport(teams) {
+  return `<div class="teams">${teams.map((t) => {
+    const l = t.last, n = t.next;
+    const res = l && l.my !== null && l.their !== null ? (l.my > l.their ? "V" : l.my < l.their ? "D" : "N") : null;
+    const img = t.badge ? `<img src="${esc(t.badge)}" alt="" loading="lazy" onerror="this.remove()">` : "";
+    const lastLine = l ? `<div class="team-line">
+        ${res ? `<span class="res ${res}" title="${{ V: "Victoire", D: "Défaite", N: "Nul" }[res]}">${res}</span><span class="score">${l.my} – ${l.their}</span>` : ""}
+        <span>${l.home === false ? "à" : "vs"} ${esc(l.opp)} · ${fmtDM(new Date(l.date))}</span></div>` : "";
+    const nextLine = n
+      ? `<div class="team-line"><span class="next-dot">${ic("calendar")}</span><span>${fmtShort(new Date(n.date))} · ${fmtTime(new Date(n.date))} · ${n.home ? "vs" : "à"} ${esc(n.opp)}</span></div>`
+      : `<div class="team-line">Pas de match programmé</div>`;
+    return `<div class="team">
+      <span class="crest" style="background:${t.color}">${esc(t.short)}${img}</span>
+      <div><div class="team-top"><b>${esc(t.name)}</b><small>${esc(t.league)}${t.live ? "" : " · exemple"}</small></div>${lastLine}${nextLine}</div>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function evRow(e) {
+  const ongoing = isOngoing(e), when = whenOf(e);
+  const sub = ongoing ? `Jusqu'au ${fmtDM(e.end)}` : `${fmtShort(e.start)}${hasTime(e.start) ? " · " + fmtTime(e.start) : ""}`;
+  const inner = `<span class="ev-date"><b>${when.getDate()}</b><small>${monthShort(when)}</small></span>
+    <span class="ev-main"><strong class="ev-title">${esc(e.title)}</strong><span class="ev-sub">${sub} · ${esc(e.place)}</span></span>
+    ${ic(e.url ? "external" : "arrow")}`;
+  return e.url
+    ? `<a class="ev" href="${esc(e.url)}" target="_blank" rel="noopener">${inner}</a>`
+    : `<button class="ev" data-place="${e.placeId}">${inner}</button>`;
+}
+
+function renderEvents(d, size, kind) {
+  const items = d.filter((e) => !kind || e.kind === kind);
+  if (!items.length) return `<p class="empty">Rien de prévu pour le moment.</p>`;
+  return `<div class="ev-list">${items.slice(0, size === "s" ? 2 : 4).map(evRow).join("")}</div>`;
+}
+
+function renderSavoir(d) {
+  const img = d.img ? `<img class="savoir-img" src="${esc(d.img)}" alt="" loading="lazy" onerror="this.remove()">` : "";
+  const more = d.url
+    ? `<a class="w-link" href="${esc(d.url)}" target="_blank" rel="noopener">Lire sur Wikipédia ${ic("external")}</a>`
+    : d.placeId ? `<button class="w-link" data-place="${d.placeId}">Voir le lieu ${ic("arrow")}</button>` : "";
+  return `<div class="savoir">${img}<h3>${esc(d.title)}</h3><p>${esc(d.text)}</p>${more}</div>`;
+}
+
+function renderQuizWidget() {
+  const q = QUIZ[dayIndex() % QUIZ.length];
+  const done = store.get("quizDay", null);
+  const picked = done && done.day === dayIndex() ? done.k : null;
+  return `<p class="qz-q">${esc(q.q)}</p>
+    <div class="qz-opts">${q.options.map((o, k) => {
+      const cls = picked === null ? "" : k === q.answer ? "good" : k === picked ? "bad" : "";
+      return `<button class="qz-opt ${cls}" data-qz="${k}" ${picked !== null ? "disabled" : ""}>${esc(o)}</button>`;
+    }).join("")}</div>
+    ${picked !== null ? `<p class="qz-fact">${picked === q.answer ? "Bonne réponse ! " : ""}${esc(q.fact)}</p>` : ""}`;
+}
+
+function renderDeals() {
+  return `<div class="hscroll">${DEALS.map((d) => `
+    <button class="deal" data-place="${d.place}">
+      <span class="deal-offer">${esc(d.offer)}</span>
+      <span class="deal-shop">${esc(d.shop)}</span>
+      <span class="deal-detail">${esc(d.detail)}</span>
+    </button>`).join("")}</div>`;
+}
+
+function renderTours() {
+  return `<div class="hscroll">${TOURS.map((t) => `
+    <a class="tour" href="#carte/parcours-${t.id}" style="background:${t.gradient}">
+      <span class="tour-stops">${t.stops.length} étapes</span>
+      <h3>${esc(t.title)}</h3><span>${t.duration} · ${t.km}</span>
+    </a>`).join("")}</div>`;
+}
+
+function renderNews() {
+  return NEWS.map((n) => `<article class="news-item"><span class="news-tag"></span>
+    <div><h3>${esc(n.title)}</h3><p>${esc(n.tag)} · ${esc(n.time)}</p></div></article>`).join("");
+}
+
+function renderExplorer() {
+  return `<div class="cat-grid">${Object.entries(CATEGORIES).map(([k, c]) => `
+    <a class="cat-tile" href="#carte/${k}"><span class="bubble" style="background:${catGradient(k)}">${ic(c.icon)}</span>${c.label}</a>`).join("")}</div>`;
+}
+
+function widgetShell(item, i = 0, solo = false) {
+  const def = WIDGETS[item.id];
+  const sizeBtn = def.sizes.length > 1
+    ? `<button class="tool" data-act="size" aria-label="${item.size === "s" ? "Agrandir" : "Réduire"}">${ic(item.size === "s" ? "resize" : "shrink")}</button>` : "";
+  return `<section class="widget size-${item.size}${solo ? " solo" : ""}" data-w="${item.id}" style="animation-delay:${Math.min(i, 8) * 45}ms">
+    <header class="w-head">${ic(def.icon)}<h2>${def.title}</h2><span class="w-badge"></span></header>
+    <div class="w-body">${def.load ? SKEL : ""}</div>
+    ${def.foot ? `<div class="w-foot">${def.foot}</div>` : ""}
+    <div class="w-tools">
+      <button class="tool grip" aria-label="Glisser pour déplacer">${ic("grip")}</button>
+      <button class="tool" data-act="up" aria-label="Monter">${ic("up")}</button>
+      <button class="tool" data-act="down" aria-label="Descendre">${ic("down")}</button>
+      ${sizeBtn}
+      ${def.settings ? `<button class="tool" data-act="settings" aria-label="Réglages">${ic("sliders")}</button>` : ""}
+      <button class="tool danger" data-act="remove" aria-label="Retirer">${ic("x")}</button>
+    </div>
+  </section>`;
+}
+
+const setBadge = (badge, live) => {
+  badge.className = "w-badge " + (live ? "live" : "sample");
+  badge.textContent = live ? "En direct" : "Exemple";
+  badge.title = live ? "Données en direct" : "Données d'exemple";
+};
+const sampleNote = (size, live) => (size === "s" && !live ? `<p class="w-note">Données d'exemple</p>` : "");
+
+// Un widget demi-largeur sans voisin prend toute la largeur (pas de trou dans la grille)
+function soloIds() {
+  const solo = new Set();
+  let open = null;
+  layout.forEach((x) => {
+    if (x.size === "s") open = open ? null : x.id;
+    else { if (open) solo.add(open); open = null; }
+  });
+  if (open) solo.add(open);
+  return solo;
+}
+
+async function fillWidget(el) {
+  const def = WIDGETS[el.dataset.w];
+  const size = el.classList.contains("size-s") ? "s" : "l";
+  const body = $(".w-body", el), badge = $(".w-badge", el);
+  if (!def.load) {
+    body.innerHTML = def.render(null, size) + (def.sample ? sampleNote(size, false) : "");
+    if (def.sample) setBadge(badge, false);
+    return;
+  }
+  const res = await def.load();
+  if (!el.isConnected) return;
+  body.innerHTML = def.render(res.data, size) + sampleNote(size, res.live);
+  setBadge(badge, res.live);
+}
+
+function renderGrid(focusId, focusAct) {
+  const grid = $("#widgets");
+  if (!grid) return;
+  const solo = soloIds();
+  grid.innerHTML = layout.map((x, i) => widgetShell(x, i, solo.has(x.id))).join("")
+    + (editing ? `<button class="add-widget" id="add-widget">${ic("plus")} Ajouter un widget</button>` : "");
+  grid.querySelectorAll(".widget").forEach(fillWidget);
+  if (focusId) grid.querySelector(`[data-w="${focusId}"] [data-act="${focusAct}"]`)?.focus();
+}
+
+// =========================================================
 // Écrans
 // =========================================================
 const screens = {
-  accueil() {
-    const hour = new Date().getHours();
-    const hello = hour < 12 ? "Bonjour" : hour < 18 ? "Bon après-midi" : "Bonsoir";
-    const upcoming = [...EVENTS].sort((a, b) => a.date.localeCompare(b.date));
-
+  mapage() {
+    const name = store.get("name", "");
+    const h = new Date().getHours();
+    const hello = h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir";
+    const top = editing
+      ? `<div class="edit-panel glass">
+          <label for="me-name">Votre prénom</label>
+          <input class="field" id="me-name" maxlength="24" placeholder="Pour vous saluer" value="${esc(name)}" autocomplete="given-name">
+          <div class="edit-panel-row"><span class="meta">Glissez la poignée ou utilisez les flèches pour réorganiser.</span>
+          <button class="text-btn" id="reset-layout">Réinitialiser</button></div>
+        </div>`
+      : `<form class="search" id="home-search" role="search">
+          ${ic("search")}
+          <input name="q" placeholder="Un resto, un musée, un match…" autocomplete="off" aria-label="Rechercher">
+          <button aria-label="Rechercher">${ic("arrow")}</button>
+        </form>`;
     return `
-      <section class="hero">
-        <p class="hero-kicker">${hello} 👋</p>
-        <h1>Tout <span>Limoges</span> dans votre poche.</h1>
-        <form class="search" id="home-search">
-          <input name="q" placeholder="Un resto, un musée, un bon plan…" autocomplete="off" aria-label="Rechercher">
-          <button aria-label="Rechercher">→</button>
-        </form>
-      </section>
-
-      <section class="section">
-        <div class="cat-grid">
-          ${Object.entries(CATEGORIES).map(([k, c]) => `
-            <a class="cat-tile" href="#carte/${k}">
-              <span class="bubble" style="background:${catGradient(k)}">${c.icon}</span>${c.label}
-            </a>`).join("")}
+      <div class="me-head">
+        <div>
+          <p class="eyebrow">${fmtDay(new Date())}</p>
+          <h1>${hello}${name ? `,<br><span>${esc(name)}</span>` : ""}</h1>
         </div>
-      </section>
-
-      <section class="section">
-        <div class="section-head"><h2>À venir</h2><a class="link" href="#agenda">Tout l'agenda</a></div>
-        <div class="hscroll">${upcoming.map(eventCard).join("")}</div>
-      </section>
-
-      <section class="section">
-        <div class="section-head"><h2>Bons plans</h2></div>
-        <div class="hscroll">
-          ${DEALS.map((d) => `
-            <button class="card deal" data-place="${d.place}">
-              <span class="deal-offer">${esc(d.offer)}</span>
-              <span class="deal-shop">${esc(d.shop)}</span>
-              <span class="deal-detail">${esc(d.detail)}</span>
-            </button>`).join("")}
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="section-head"><h2>Parcours</h2></div>
-        <div class="hscroll">
-          ${TOURS.map((t) => `
-            <a class="tour" href="#carte/parcours-${t.id}" style="background:${t.gradient}">
-              <span class="tour-stops">${t.stops.length} étapes</span>
-              <h3>${esc(t.title)}</h3>
-              <span class="meta">${t.duration} · ${t.km}</span>
-            </a>`).join("")}
-        </div>
-      </section>
-
-      <section class="section">
-        <div class="section-head"><h2>Actualités</h2></div>
-        <div class="card news">
-          ${NEWS.map((n) => `
-            <article class="news-item">
-              <span class="news-tag">${esc(n.tag.slice(0, 5))}</span>
-              <div><h3>${esc(n.title)}</h3><p class="meta">${esc(n.tag)} · ${esc(n.time)}</p></div>
-            </article>`).join("")}
-        </div>
-      </section>
-
-      <p class="footnote">Limoges · Arts du feu et innovation<br>Version de démonstration — données d'exemple</p>
-    `;
+        <button class="edit-btn ${editing ? "on" : ""}" id="edit-toggle">${editing ? "Terminé" : `${ic("sliders")} Personnaliser`}</button>
+      </div>
+      ${top}
+      <div class="widgets ${editing ? "editing" : ""}" id="widgets"></div>
+      <p class="footnote">Ma page · Limoges, arts du feu et innovation</p>`;
   },
 
-  carte(param) {
+  carte() {
     view.classList.add("no-pad");
-    const filters = [["all", "Tout", "✨"], ...Object.entries(CATEGORIES).map(([k, c]) => [k, c.label, c.icon])];
+    const filters = [["all", "Tout", "sparkles"], ...Object.entries(CATEGORIES).map(([k, c]) => [k, c.label, c.icon])];
     return `
       <div class="map-wrap">
         <div id="map" aria-label="Carte interactive de Limoges"></div>
         <div class="map-overlay">
           <div class="chips" id="map-filters">
-            ${filters.map(([k, l, i]) => `<button class="chip" data-filter="${k}">${i} ${l}</button>`).join("")}
-            <button class="chip" id="locate">📍 Autour de moi</button>
+            ${filters.map(([k, l, i]) => `<button class="chip" data-filter="${k}">${ic(i)} ${l}</button>`).join("")}
+            <button class="chip" id="locate">${ic("locate")} Autour de moi</button>
           </div>
         </div>
       </div>`;
   },
 
   agenda(param) {
-    const active = param || "all";
-    const list = EVENTS
-      .filter((e) => active === "all" || e.cat === active)
-      .sort((a, b) => a.date.localeCompare(b.date));
-    const byDay = {};
-    list.forEach((e) => { (byDay[e.date.slice(0, 10)] ||= []).push(e); });
-    const cats = ["all", ...new Set(EVENTS.map((e) => e.cat))];
-
+    const active = ["culture", "sport", "autre"].includes(param) ? param : "all";
+    const chips = [["all", "Tout", "sparkles"], ["culture", "Culture", "palette"], ["sport", "Sport", "trophy"], ["autre", "Autres", "calendar"]];
     return `
       <h1 class="page-title">Agenda</h1>
-      <p class="page-sub">Concerts, matchs, marchés : ce qui bouge à Limoges.</p>
-      <div class="chips">
-        ${cats.map((c) => `<a class="chip ${c === active ? "active" : ""}" href="#agenda/${c}">
-          ${c === "all" ? "✨ Tout" : CATEGORIES[c].icon + " " + CATEGORIES[c].label}</a>`).join("")}
-      </div>
-      <div>
-        ${Object.entries(byDay).map(([day, evs]) => `
-          <p class="day-label">${fmtDay(new Date(day + "T12:00"))}</p>
-          ${evs.map((e) => {
-            const d = new Date(e.date), p = placeById[e.place];
-            return `
-              <button class="card agenda-item" data-place="${p.id}">
-                <span class="agenda-time" style="background:${catGradient(e.cat)}"><b>${fmtTime(d)}</b><small>${CATEGORIES[e.cat].icon}</small></span>
-                <span><h3>${esc(e.title)}</h3><p class="meta">${esc(p.name)} · ${esc(e.price)}</p></span>
-              </button>`;
-          }).join("")}`).join("") || `<p class="page-sub">Aucun événement pour ce filtre.</p>`}
-      </div>`;
+      <p class="page-sub">Ce qui se passe à Limoges dans les prochains jours.</p>
+      <div class="chips">${chips.map(([k, l, i]) => `<a class="chip ${k === active ? "active" : ""}" href="#agenda/${k}">${ic(i)} ${l}</a>`).join("")}</div>
+      <div class="agenda-list" id="agenda-list"><div class="skel" style="margin-top:24px"><i></i><i></i><i></i></div></div>`;
   },
 
   jouer() {
@@ -177,37 +507,23 @@ const screens = {
     view.classList.add("chat-view");
     return `
       <h1 class="page-title">Le Guide</h1>
-      <p class="page-sub">Demandez-moi un lieu, une sortie, un resto…</p>
+      <p class="page-sub">Demandez un lieu, une sortie, un résultat de match…</p>
       <div class="chat" id="chat"></div>
       <form class="chat-input" id="chat-form">
         <input name="q" placeholder="Où manger près des Halles ?" autocomplete="off" aria-label="Votre question">
-        <button aria-label="Envoyer">↑</button>
+        <button class="send-btn" aria-label="Envoyer">${ic("send")}</button>
       </form>`;
   },
 };
-
-function eventCard(e) {
-  const d = new Date(e.date), p = placeById[e.place];
-  return `
-    <button class="card event-card" data-place="${p.id}">
-      <div class="event-cover" style="background:${catGradient(e.cat)}">
-        <span class="date-badge"><b>${d.getDate()}</b><small>${d.toLocaleDateString("fr-FR", { month: "short" }).replace(".", "")}</small></span>
-        <span class="emoji">${CATEGORIES[e.cat].icon}</span>
-      </div>
-      <div class="event-body">
-        <h3>${esc(e.title)}</h3>
-        <p class="meta">${esc(p.name)} · ${fmtTime(d)}</p>
-        <span class="price">${esc(e.price)}</span>
-      </div>
-    </button>`;
-}
 
 // =========================================================
 // Routeur
 // =========================================================
 function route() {
-  const [name, param] = (location.hash.slice(1) || "accueil").split("/");
-  const screen = screens[name] ? name : "accueil";
+  let [name, param] = (location.hash.slice(1) || "mapage").split("/");
+  if (name === "accueil") name = "mapage";
+  const screen = screens[name] ? name : "mapage";
+  if (screen !== "mapage") editing = false;
   closeSheet();
   view.classList.remove("no-pad", "chat-view");
   destroyMap();
@@ -218,16 +534,44 @@ function route() {
 }
 
 const after = {
-  accueil() {
-    $("#home-search").addEventListener("submit", (ev) => {
-      ev.preventDefault();
-      const q = ev.target.q.value.trim();
-      if (!q) return;
-      pendingQuestion = q;
-      location.hash = "guide";
-    });
+  mapage() {
+    renderGrid();
+    $("#edit-toggle").onclick = () => {
+      editing = !editing;
+      route();
+      if (!editing) toast("Ma page est enregistrée");
+    };
+    const grid = $("#widgets");
+    grid.addEventListener("click", onWidgetClick);
+    grid.addEventListener("pointerdown", onGripDown);
+
+    if (!editing) {
+      $("#home-search").addEventListener("submit", (ev) => {
+        ev.preventDefault();
+        const q = ev.target.q.value.trim();
+        if (!q) return;
+        pendingQuestion = q;
+        location.hash = "guide";
+      });
+      return;
+    }
+    $("#me-name").addEventListener("input", (ev) => store.set("name", ev.target.value.trim()));
+    const reset = $("#reset-layout");
+    reset.onclick = () => {
+      if (!reset.dataset.armed) {
+        reset.dataset.armed = "1";
+        reset.textContent = "Confirmer la réinitialisation";
+        return;
+      }
+      layout = cleanLayout(DEFAULT_LAYOUT);
+      saveLayout();
+      store.set("teams", ["csp", "hand"]);
+      toast("Page réinitialisée");
+      route();
+    };
   },
   carte(param) { initMap(param); },
+  agenda(param) { renderAgenda(param); },
   jouer() { renderQuiz(); },
   guide() { initChat(); },
 };
@@ -237,13 +581,150 @@ window.addEventListener("hashchange", route);
 // Ouverture de fiche depuis n'importe quel élément [data-place]
 document.addEventListener("click", (ev) => {
   const el = ev.target.closest("[data-place]");
-  if (el && !el.closest(".sheet")) openPlace(el.dataset.place);
+  if (el && el.dataset.place && !el.closest(".sheet")) openPlace(el.dataset.place);
 });
+
+// =========================================================
+// Personnalisation de Ma page
+// =========================================================
+function onWidgetClick(e) {
+  const qz = e.target.closest("[data-qz]");
+  if (qz) {
+    store.set("quizDay", { day: dayIndex(), k: +qz.dataset.qz });
+    fillWidget(qz.closest(".widget"));
+    return;
+  }
+  if (e.target.closest("#add-widget")) return openAddSheet();
+
+  const btn = e.target.closest("[data-act]");
+  if (!btn) return;
+  const id = btn.closest(".widget").dataset.w;
+  const i = layout.findIndex((x) => x.id === id);
+  const act = btn.dataset.act;
+  if (act === "up" && i > 0) {
+    [layout[i - 1], layout[i]] = [layout[i], layout[i - 1]];
+  } else if (act === "down" && i < layout.length - 1) {
+    [layout[i + 1], layout[i]] = [layout[i], layout[i + 1]];
+  } else if (act === "size") {
+    layout[i].size = layout[i].size === "s" ? "l" : "s";
+  } else if (act === "settings") {
+    return WIDGETS[id].settings();
+  } else if (act === "remove") {
+    layout.splice(i, 1);
+    toast(`« ${WIDGETS[id].title} » retiré`);
+  } else {
+    return;
+  }
+  saveLayout();
+  renderGrid(act === "remove" ? null : id, act);
+}
+
+// Glisser-déposer avec la poignée (souris et tactile)
+function onGripDown(e) {
+  const grip = e.target.closest(".grip");
+  if (!grip) return;
+  e.preventDefault();
+  const grid = $("#widgets"), card = grip.closest(".widget");
+  card.classList.add("dragging");
+  const move = (ev) => {
+    const r = view.getBoundingClientRect();
+    if (ev.clientY < r.top + 70) view.scrollTop -= 14;
+    else if (ev.clientY > r.bottom - 130) view.scrollTop += 14;
+    const target = document.elementFromPoint(ev.clientX, ev.clientY)?.closest(".widget");
+    if (!target || target === card || target.parentNode !== grid) return;
+    const items = [...grid.querySelectorAll(".widget")];
+    grid.insertBefore(card, items.indexOf(card) < items.indexOf(target) ? target.nextSibling : target);
+  };
+  const up = () => {
+    document.removeEventListener("pointermove", move);
+    document.removeEventListener("pointerup", up);
+    document.removeEventListener("pointercancel", up);
+    card.classList.remove("dragging");
+    const order = [...grid.querySelectorAll(".widget")].map((w) => w.dataset.w);
+    layout.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    saveLayout();
+    renderGrid();
+  };
+  document.addEventListener("pointermove", move);
+  document.addEventListener("pointerup", up);
+  document.addEventListener("pointercancel", up);
+}
+
+function openAddSheet() {
+  const avail = Object.keys(WIDGETS).filter((id) => !layout.some((x) => x.id === id));
+  const sheet = openSheet(`
+    <div class="sheet-head"><h2>Ajouter un widget</h2><button class="sheet-close" aria-label="Fermer">${ic("x")}</button></div>
+    ${avail.length ? `<div class="opt-list">${avail.map((id) => {
+      const w = WIDGETS[id];
+      return `<div class="opt-row"><span class="bubble">${ic(w.icon)}</span><span><b>${w.title}</b><p>${w.desc}</p></span>
+        <button class="pill-add" data-add="${id}">${ic("plus")} Ajouter</button></div>`;
+    }).join("")}</div>` : `<p class="sheet-note">Tous les widgets sont déjà sur votre page.</p>`}`);
+  sheet.onclick = (e) => {
+    const b = e.target.closest("[data-add]");
+    if (!b) return;
+    const def = WIDGETS[b.dataset.add];
+    layout.push({ id: b.dataset.add, size: def.sizes.includes("l") ? "l" : def.sizes[0] });
+    saveLayout();
+    closeSheet();
+    renderGrid(b.dataset.add, "up");
+    $(`[data-w="${b.dataset.add}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+    toast(`« ${def.title} » ajouté`);
+  };
+}
+
+function openTeamSettings() {
+  const draw = () => {
+    const sel = getTeams();
+    return `
+      <div class="sheet-head"><h2>Équipes suivies</h2><button class="sheet-close" aria-label="Fermer">${ic("x")}</button></div>
+      <div class="opt-list">${TEAMS.map((t) => {
+        const on = sel.includes(t.id);
+        return `<button class="opt-row" data-team="${t.id}" role="switch" aria-checked="${on}">
+          <span class="crest" style="background:${t.color}">${t.short}</span>
+          <span><b>${t.name}</b><p>${t.label}</p></span><span class="switch ${on ? "on" : ""}"></span></button>`;
+      }).join("")}</div>
+      <p class="sheet-note">Les résultats viennent de TheSportsDB quand le service répond. Sinon, le widget affiche des exemples signalés comme tels.</p>`;
+  };
+  const sheet = openSheet(draw());
+  sheet.onclick = (e) => {
+    const b = e.target.closest("[data-team]");
+    if (!b) return;
+    const sel = getTeams();
+    const next = sel.includes(b.dataset.team) ? sel.filter((x) => x !== b.dataset.team) : [...sel, b.dataset.team];
+    if (!next.length) return toast("Gardez au moins une équipe");
+    store.set("teams", TEAMS.map((t) => t.id).filter((id) => next.includes(id)));
+    sheet.innerHTML = draw();
+    sheet.querySelectorAll(".sheet-close").forEach((c) => (c.onclick = closeSheet));
+    const w = $('[data-w="sport"]');
+    if (w) fillWidget(w);
+  };
+}
+
+// =========================================================
+// Agenda
+// =========================================================
+async function renderAgenda(param) {
+  const active = ["culture", "sport", "autre"].includes(param) ? param : "all";
+  const res = await loadEvents();
+  const list = $("#agenda-list");
+  if (!list) return;
+  const items = res.data.filter((e) => active === "all" || e.kind === active);
+  const groups = [];
+  items.forEach((e) => {
+    const label = isOngoing(e) ? "En ce moment" : fmtDay(e.start);
+    const g = groups.find((x) => x.label === label);
+    g ? g.items.push(e) : groups.push({ label, items: [e] });
+  });
+  list.innerHTML = (groups.map((g) => `<p class="day-label">${g.label}</p>${g.items.map(evRow).join("")}`).join("")
+      || `<p class="page-sub" style="margin-top:24px">Aucun événement pour ce filtre.</p>`)
+    + `<p class="src-note"><span class="w-badge ${res.live ? "live" : "sample"}">${res.live ? "En direct" : "Exemple"}</span>
+       ${res.live ? "Source : OpenAgenda" : "Agenda en ligne indisponible, événements d'exemple."}</p>`;
+}
 
 // =========================================================
 // Carte
 // =========================================================
-let map = null, tiles = null, markers = [], routeLine = null;
+let map = null, tiles = null, markers = [], routeLine = null, backdrop = null;
 
 function setTiles() {
   const dark = document.documentElement.dataset.theme === "dark";
@@ -256,35 +737,33 @@ function setTiles() {
 }
 
 // Fond de secours quand les tuiles ne chargent pas (hors ligne, réseau filtré)
-let backdrop = null;
 function drawFallbackBackdrop() {
   if (!map || backdrop) return;
   $("#map").classList.add("offline");
   const vienne = [[45.8190, 1.2300], [45.8222, 1.2440], [45.8243, 1.2560], [45.8256, 1.2640], [45.8262, 1.2672], [45.8270, 1.2730], [45.8292, 1.2830], [45.8320, 1.2950]];
   backdrop = L.layerGroup([
     L.polyline(vienne, { color: "#3A9BDC", weight: 14, opacity: .35, lineCap: "round", interactive: false }),
-    L.polyline(vienne, { color: "#3A9BDC", weight: 3, opacity: .8, interactive: false })
+    L.polyline(vienne, { color: "#7CC4F2", weight: 3, opacity: .9, interactive: false })
       .bindTooltip("La Vienne", { permanent: true, direction: "bottom", className: "river-label", offset: [0, 8] }),
   ]).addTo(map);
 }
 
 function destroyMap() {
-  if (map) { map.remove(); map = null; tiles = null; backdrop = null; markers = []; routeLine = null; }
+  if (map) { map.remove(); map = null; tiles = null; markers = []; routeLine = null; backdrop = null; }
 }
 
 function initMap(param) {
   if (typeof L === "undefined") {
-    $("#map").innerHTML = `<p class="page-sub" style="padding:80px 24px;text-align:center">La carte nécessite une connexion internet.</p>`;
+    $("#map").innerHTML = `<p class="page-sub" style="padding:120px 24px;text-align:center">La carte nécessite une connexion internet.</p>`;
     return;
   }
   map = L.map("map", { zoomControl: false, attributionControl: true }).setView([45.8315, 1.2600], 15);
   setTiles();
 
   markers = PLACES.map((p) => {
-    const c = CATEGORIES[p.cat];
     const icon = L.divIcon({
       className: "", iconSize: [38, 38], iconAnchor: [4, 38],
-      html: `<div class="pin" style="background:${catGradient(p.cat)}"><span>${c.icon}</span></div>`,
+      html: `<div class="pin" style="background:${catGradient(p.cat)}">${ic(CATEGORIES[p.cat].icon)}</div>`,
     });
     const m = L.marker([p.lat, p.lng], { icon, title: p.name }).on("click", () => openPlace(p.id));
     m.place = p;
@@ -292,11 +771,8 @@ function initMap(param) {
   });
 
   const tour = param?.startsWith("parcours-") ? TOURS.find((t) => "parcours-" + t.id === param) : null;
-  if (tour) {
-    showTour(tour);
-  } else {
-    applyFilter(CATEGORIES[param] ? param : "all");
-  }
+  if (tour) showTour(tour);
+  else applyFilter(CATEGORIES[param] ? param : "all");
 
   $("#map-filters").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-filter]");
@@ -319,10 +795,9 @@ function applyFilter(cat) {
 
 function showTour(tour) {
   document.querySelectorAll("#map-filters [data-filter]").forEach((b) => b.classList.remove("active"));
-  const stops = tour.stops.map((id) => placeById[id]);
   markers.forEach((m) => (tour.stops.includes(m.place.id) ? m.addTo(map) : m.remove()));
-  const pts = stops.map((p) => [p.lat, p.lng]);
-  routeLine = L.polyline(pts, { color: "#E3161B", weight: 5, opacity: .85, dashArray: "2 10", lineCap: "round" }).addTo(map);
+  const pts = tour.stops.map((id) => [placeById[id].lat, placeById[id].lng]);
+  routeLine = L.polyline(pts, { color: "#FFD500", weight: 5, opacity: .95, dashArray: "2 10", lineCap: "round" }).addTo(map);
   map.fitBounds(routeLine.getBounds().pad(0.35));
   toast(`Parcours « ${tour.title} » · ${tour.duration}`);
 }
@@ -341,58 +816,63 @@ function locate() {
 }
 
 // =========================================================
-// Fiche lieu (bottom sheet) + avis
+// Panneaux : fiche lieu, réglages
 // =========================================================
+function openSheet(html) {
+  const sheet = $("#sheet"), bd = $("#sheet-backdrop");
+  sheet.onclick = null;
+  sheet.innerHTML = html;
+  sheet.hidden = false;
+  bd.hidden = false;
+  sheet.scrollTop = 0;
+  sheet.querySelectorAll(".sheet-close").forEach((b) => (b.onclick = closeSheet));
+  bd.onclick = closeSheet;
+  return sheet;
+}
+
+function closeSheet() {
+  $("#sheet").hidden = true;
+  $("#sheet-backdrop").hidden = true;
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
+
 function openPlace(id) {
   const p = placeById[id];
   if (!p) return;
-  const sheet = $("#sheet"), backdrop = $("#sheet-backdrop");
-  const favs = store.get("favs", []);
-  const isFav = favs.includes(id);
+  const isFav = store.get("favs", []).includes(id);
   const userReviews = store.get("reviews:" + id, []);
   const allReviews = [...userReviews, ...sampleReviews(p)];
   const events = EVENTS.filter((e) => e.place === id);
+  const cover = p.photo
+    ? `<div class="sheet-cover photo">`
+    : `<div class="sheet-cover" style="background:${catGradient(p.cat)}">${ic(CATEGORIES[p.cat].icon)}`;
 
-  sheet.innerHTML = `
-    <div class="sheet-cover" style="background:${catGradient(p.cat)}">
-      ${CATEGORIES[p.cat].icon}
-      <button class="sheet-close" aria-label="Fermer">✕</button>
-    </div>
+  const sheet = openSheet(`
+    ${cover}<button class="sheet-close" aria-label="Fermer">${ic("x")}</button></div>
     <div class="sheet-body">
-      <p class="meta">${CATEGORIES[p.cat].label}</p>
+      <p class="eyebrow">${CATEGORIES[p.cat].label}</p>
       <h2>${esc(p.name)}</h2>
-      <div class="rating-row"><span class="stars">${stars(p.rating)}</span> ${p.rating.toFixed(1)} · ${p.reviews + userReviews.length} avis</div>
+      <div class="rating-row">${stars(p.rating)} ${p.rating.toFixed(1)} · ${p.reviews + userReviews.length} avis</div>
       <p class="sheet-desc">${esc(p.desc)}</p>
       <div class="tags">${p.tags.map((t) => `<span class="tag">${esc(t)}</span>`).join("")}</div>
       <div class="actions">
-        <button class="btn ${isFav ? "flame" : "ghost"}" id="fav">${isFav ? "♥ Favori" : "♡ Favori"}</button>
-        <a class="btn" href="https://www.openstreetmap.org/directions?to=${p.lat},${p.lng}" target="_blank" rel="noopener">Itinéraire</a>
+        <button class="btn ${isFav ? "flame" : "ghost"}" id="fav">${ic("heart")} ${isFav ? "Favori" : "Ajouter"}</button>
+        <a class="btn" href="https://www.openstreetmap.org/directions?to=${p.lat},${p.lng}" target="_blank" rel="noopener">${ic("nav")} Itinéraire</a>
       </div>
-      ${events.length ? `
-        <div class="section"><div class="section-head"><h2>Événements</h2></div>
-          ${events.map((e) => `<p><b>${esc(e.title)}</b> <span class="meta">— ${fmtDay(new Date(e.date))}, ${fmtTime(new Date(e.date))}</span></p>`).join("")}
-        </div>` : ""}
-      <div class="section">
-        <div class="section-head"><h2>Avis</h2></div>
-        <form class="review-form" id="review-form">
-          <div class="star-input" role="radiogroup" aria-label="Votre note">
-            ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}" aria-label="${n} étoile${n > 1 ? "s" : ""}">★</button>`).join("")}
-          </div>
-          <textarea name="text" placeholder="Partagez votre expérience…" maxlength="400"></textarea>
-          <button class="btn flame">Publier mon avis</button>
-        </form>
-        <div id="reviews" style="margin-top:14px">
-          ${allReviews.map((r) => `
-            <div class="review"><b>${esc(r.author)}</b> <span class="stars">${stars(r.stars)}</span><p>${esc(r.text)}</p></div>`).join("")}
+      ${events.length ? `<p class="section-title">Événements</p>
+        ${events.map((e) => `<p style="margin-top:8px"><b>${esc(e.title)}</b> <span class="meta">— ${fmtDay(new Date(e.date))}, ${fmtTime(new Date(e.date))}</span></p>`).join("")}` : ""}
+      <p class="section-title">Avis</p>
+      <form class="review-form" id="review-form">
+        <div class="star-input" role="radiogroup" aria-label="Votre note">
+          ${[1, 2, 3, 4, 5].map((n) => `<button type="button" data-star="${n}" aria-label="${n} étoile${n > 1 ? "s" : ""}">${ic("star")}</button>`).join("")}
         </div>
+        <textarea class="field" id="review-text" name="text" placeholder="Partagez votre expérience…" maxlength="400"></textarea>
+        <button class="btn flame">Publier mon avis</button>
+      </form>
+      <div style="margin-top:14px">
+        ${allReviews.map((r) => `<div class="review"><b>${esc(r.author)}</b>${stars(r.stars)}<p>${esc(r.text)}</p></div>`).join("")}
       </div>
-    </div>`;
-
-  sheet.hidden = false;
-  backdrop.hidden = false;
-
-  $(".sheet-close", sheet).onclick = closeSheet;
-  backdrop.onclick = closeSheet;
+    </div>`);
 
   $("#fav", sheet).onclick = () => {
     const list = store.get("favs", []);
@@ -430,19 +910,13 @@ function sampleReviews(p) {
   return [pool[i], pool[(i + 1) % pool.length]];
 }
 
-function closeSheet() {
-  $("#sheet").hidden = true;
-  $("#sheet-backdrop").hidden = true;
-}
-document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeSheet(); });
-
 // =========================================================
 // Quiz
 // =========================================================
 const BADGES = [
-  { min: 1, label: "🔥 Première flamme" },
-  { min: 4, label: "🏺 Apprenti porcelainier" },
-  { min: 6, label: "👑 Limougeaud d'or" },
+  { min: 1, label: "Première flamme" },
+  { min: 4, label: "Apprenti porcelainier" },
+  { min: 6, label: "Limougeaud d'or" },
 ];
 
 function renderQuiz(state = { i: 0, score: 0, answered: false }) {
@@ -457,8 +931,8 @@ function renderQuiz(state = { i: 0, score: 0, answered: false }) {
     store.set("quizBest", newBest);
     store.set("quizPlayed", played + 1);
     root.innerHTML = `
-      <div class="card score-hero quiz-card">
-        <div class="score-ring" style="background:conic-gradient(var(--red), var(--orange), var(--yellow) ${pct}%, var(--surface-2) 0)">
+      <div class="glass quiz-card score-hero">
+        <div class="score-ring" style="background:conic-gradient(var(--red), var(--orange), var(--yellow) ${pct}%, rgba(255,255,255,.14) 0)">
           <div>${state.score}/${QUIZ.length}</div>
         </div>
         <h2>${pct >= 80 ? "Bravo, vrai Limougeaud !" : pct >= 50 ? "Pas mal du tout !" : "Il reste des choses à découvrir !"}</h2>
@@ -466,21 +940,20 @@ function renderQuiz(state = { i: 0, score: 0, answered: false }) {
         <button class="btn flame block" id="restart">Rejouer</button>
       </div>
       <div class="stats">
-        <div class="card stat"><b>${newBest}</b><small>Meilleur score</small></div>
-        <div class="card stat"><b>${played + 1}</b><small>Parties</small></div>
-        <div class="card stat"><b>${newBest * 10}</b><small>Points</small></div>
+        <div class="glass stat"><b>${newBest}</b><small>Meilleur score</small></div>
+        <div class="glass stat"><b>${played + 1}</b><small>Parties</small></div>
+        <div class="glass stat"><b>${newBest * 10}</b><small>Points</small></div>
       </div>
-      <div class="section"><div class="section-head"><h2>Badges</h2></div>
-        <div class="badges">${BADGES.map((b) => `<span class="badge ${newBest >= b.min ? "" : "locked"}">${b.label}</span>`).join("")}</div>
-      </div>`;
+      <p class="section-title">Badges</p>
+      <div class="badges">${BADGES.map((b) => `<span class="badge ${newBest >= b.min ? "" : "locked"}">${ic("flame")} ${b.label}</span>`).join("")}</div>`;
     $("#restart").onclick = () => renderQuiz();
     return;
   }
 
   const q = QUIZ[state.i];
   root.innerHTML = `
-    <div class="card quiz-card">
-      <div class="quiz-top"><span>Question ${state.i + 1}/${QUIZ.length}</span><span>🔥 ${state.score * 10} pts</span></div>
+    <div class="glass quiz-card">
+      <div class="quiz-top"><span>Question ${state.i + 1}/${QUIZ.length}</span><span>${ic("flame")} ${state.score * 10} pts</span></div>
       <div class="progress"><i style="width:${(state.i / QUIZ.length) * 100}%"></i></div>
       <p class="quiz-q">${esc(q.q)}</p>
       <div class="options">
@@ -493,14 +966,14 @@ function renderQuiz(state = { i: 0, score: 0, answered: false }) {
     btn.onclick = () => {
       if (state.answered) return;
       state.answered = true;
-      const k = +btn.dataset.k, ok = k === q.answer;
+      const ok = +btn.dataset.k === q.answer;
       if (ok) state.score++;
       root.querySelectorAll(".option").forEach((b) => {
         if (+b.dataset.k === q.answer) b.classList.add("good");
         else if (b === btn) b.classList.add("bad");
       });
       $("#after").innerHTML = `
-        <p class="fact">${ok ? "✅ Exact !" : "❌ Raté."} ${esc(q.fact)}</p>
+        <p class="fact">${ok ? "Exact !" : "Raté."} ${esc(q.fact)}</p>
         <button class="btn block" id="next">${state.i + 1 < QUIZ.length ? "Question suivante" : "Voir mon score"}</button>`;
       $("#next").onclick = () => renderQuiz({ i: state.i + 1, score: state.score, answered: false });
     };
@@ -516,24 +989,39 @@ const INTENTS = [
   { keys: ["musee", "culture", "expo", "porcelaine", "email", "art", "spectacle", "opera"], cat: "culture", say: "Côté culture et arts du feu :" },
   { keys: ["histoire", "monument", "visite", "patrimoine", "cathedrale", "gare", "medieval"], cat: "patrimoine", say: "Les incontournables du patrimoine :" },
   { keys: ["parc", "jardin", "balade", "nature", "promenade", "vert", "enfant"], cat: "nature", say: "Pour prendre l'air :" },
-  { keys: ["sport", "basket", "csp", "match", "courir", "run"], cat: "sport", say: "Pour les sportifs et les supporters :" },
   { keys: ["shopping", "boutique", "commerce", "acheter", "cafe", "terrasse"], cat: "shopping", say: "Pour flâner et faire du shopping :" },
 ];
 
-function answer(q) {
+async function answer(q) {
   const n = norm(q);
+  if (/\b(csp|basket|handball|hand|foot|football|match|resultat|score)\b/.test(n)) {
+    const res = await loadSport();
+    const lines = res.data.map((t) => {
+      const l = t.last, nx = t.next;
+      const r = l && l.my !== null ? `${l.my > l.their ? "victoire" : l.my < l.their ? "défaite" : "nul"} ${l.my}–${l.their} contre ${l.opp}` : "pas de résultat récent";
+      return `${t.name} : ${r}${nx ? `. Prochain match ${fmtShort(new Date(nx.date))} contre ${nx.opp}` : ""}.`;
+    });
+    return { text: lines.join(" ") + (res.live ? "" : " (données d'exemple)"), places: [placeById.beaublanc] };
+  }
+  if (/(meteo|temps|pluie|soleil|temperature)/.test(n)) {
+    const res = await loadWeather();
+    const w = wxInfo(res.data.code);
+    return { text: `À Limoges : ${res.data.temp}°, ${w.label.toLowerCase()}.${res.live ? "" : " (données d'exemple)"}` };
+  }
   const direct = PLACES.filter((p) => n.includes(norm(p.name)) || norm(p.name).split(" ").some((w) => w.length > 5 && n.includes(w)));
   if (direct.length) return { text: "Voici ce que j'ai trouvé :", places: direct };
   if (/(sortie|evenement|ce soir|week|agenda|concert)/.test(n)) {
-    const next = [...EVENTS].sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
-    return { text: "Prochains rendez-vous : " + next.map((e) => `${e.title} (${fmtDay(new Date(e.date))})`).join(" · "), places: next.map((e) => placeById[e.place]) };
+    const res = await loadEvents();
+    const next = res.data.slice(0, 3);
+    return { text: "Prochains rendez-vous : " + next.map((e) => `${e.title} (${fmtShort(whenOf(e))})`).join(" · ") + (res.live ? "" : " (exemples)"),
+      places: next.map((e) => placeById[e.placeId]).filter(Boolean) };
   }
   if (/(bon plan|promo|reduction|offre)/.test(n)) {
     return { text: "Les bons plans du moment : " + DEALS.map((d) => `${d.offer} chez ${d.shop}`).join(" · "), places: DEALS.map((d) => placeById[d.place]) };
   }
   const intent = INTENTS.find((it) => it.keys.some((k) => n.includes(k)));
   if (intent) return { text: intent.say, places: PLACES.filter((p) => p.cat === intent.cat).sort((a, b) => b.rating - a.rating) };
-  return { text: "Je n'ai pas encore la réponse 🙂 Essayez « un resto », « un musée », « une balade » ou « ce week-end »." };
+  return { text: "Je n'ai pas encore la réponse. Essayez « un resto », « un musée », « le score du CSP » ou « ce week-end »." };
 }
 
 function initChat() {
@@ -545,17 +1033,17 @@ function initChat() {
     chat.appendChild(m);
     view.scrollTop = view.scrollHeight;
   };
-  const reply = (q) => {
+  const reply = async (q) => {
     add(esc(q), "me");
-    setTimeout(() => {
-      const r = answer(q);
-      add(esc(r.text) + (r.places ? "<br>" + r.places.map((p) => `<button class="place-link" data-place="${p.id}">${CATEGORIES[p.cat].icon} ${esc(p.name)}</button>`).join("") : ""), "bot");
-    }, 350);
+    const [r] = await Promise.all([answer(q), new Promise((ok) => setTimeout(ok, 350))]);
+    if (!chat.isConnected) return;
+    const links = (r.places || []).map((p) => `<button class="place-link" data-place="${p.id}">${ic(CATEGORIES[p.cat].icon)} ${esc(p.name)}</button>`).join("");
+    add(esc(r.text) + (links ? "<br>" + links : ""), "bot");
   };
 
-  add(`Bonjour ! Je suis le guide de Limoges 🔥<br>Que cherchez-vous aujourd'hui ?
+  add(`Bonjour ! Je suis le guide de Limoges. Que cherchez-vous aujourd'hui ?
     <div class="suggestions">
-      ${["Où manger ?", "Un musée", "Une balade", "Ce week-end", "Bons plans"].map((s) => `<button class="chip" data-suggest="${s}">${s}</button>`).join("")}
+      ${["Où manger ?", "Un musée", "Le score du CSP", "Ce week-end", "Quel temps fait-il ?"].map((s) => `<button class="chip" data-suggest="${s}">${s}</button>`).join("")}
     </div>`, "bot");
 
   chat.addEventListener("click", (e) => {
