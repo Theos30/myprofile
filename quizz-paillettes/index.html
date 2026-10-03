@@ -1,0 +1,1657 @@
+<title>Quizz Paillettes</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Nunito:wght@500;700;800;900&family=Noto+Color+Emoji&display=swap">
+<style>
+/* Layout: one-column phone app on a velvet TV-show stage. Hub tabs (quizz / classement / profil) + a full-screen game flow. */
+:root{
+  --stage:#150A29; --stage-2:#1F0F3C; --panel:#2A1650; --panel-2:#371E66;
+  --line:rgba(255,236,200,.13);
+  --ink:#FFF4E0; --muted:#C2B2E0; --dim:#8F7DB3;
+  --gold:#FFC93C; --hot:#FF3D81; --good:#2EE6A0; --bad:#FF5148; --cyan:#3FD0FF; --fire:#FF6A1A;
+  --on-bright:#160A2B;
+  --f-display:"Bungee","Arial Black",Impact,sans-serif;
+  --f-body:"Nunito",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --f-emoji:"Noto Color Emoji","Apple Color Emoji","Segoe UI Emoji",sans-serif;
+  --r:18px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{height:100%;box-sizing:border-box;background:var(--stage)}
+body{height:100%;margin:0;overflow:hidden;color:var(--ink);font:600 15px/1.4 var(--f-body);
+  background:
+    radial-gradient(120% 60% at 50% -10%, rgba(255,61,129,.28), transparent 60%),
+    radial-gradient(90% 50% at 100% 100%, rgba(63,208,255,.14), transparent 60%),
+    var(--stage);
+  -webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;padding:0}
+button:focus-visible,input:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+h1,h2,h3{margin:0;text-wrap:balance}
+p{margin:0}
+.eyebrow{font:800 11px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+.muted{color:var(--muted)}
+.num{font-variant-numeric:tabular-nums}
+
+#app{position:relative;height:100%;max-width:480px;margin:0 auto;overflow:hidden}
+.screen{position:absolute;inset:0;display:flex;flex-direction:column}
+.hub{overflow-y:auto;overscroll-behavior:contain;padding:14px 16px 104px;gap:18px}
+.hub>*,#scr-result>*,#scr-game>*,.g-stage>*{flex-shrink:0}
+#scr-game>.g-stage{flex-shrink:1}
+
+/* ---------- top bar ---------- */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;flex-direction:column;line-height:.9;transform:rotate(-3deg);transform-origin:left center}
+.brand-1{font:20px var(--f-display);color:var(--ink)}
+.brand-2{font:24px var(--f-display);color:var(--gold);text-shadow:0 0 18px rgba(255,201,60,.55),2px 2px 0 var(--hot)}
+.chips{display:flex;gap:8px}
+.chip{display:inline-flex;align-items:center;gap:6px;height:36px;padding:0 12px;border-radius:99px;background:var(--panel);border:1px solid var(--line);font-weight:800}
+.chip b{font:15px var(--f-display)}
+.chip .flame{width:16px;height:22px}
+
+/* ---------- presenter ---------- */
+.host-svg{display:block;width:100%;height:auto;overflow:visible}
+.host-svg .mouth{transform-box:fill-box;transform-origin:center;transform:scaleY(.45)}
+.host-svg .brows{transform-box:fill-box;transform-origin:center}
+.talking .host-svg .mouth{animation:talk .16s ease-in-out infinite alternate}
+.talking .host-svg .brows{animation:brow .5s ease-in-out infinite alternate}
+.talking .host-svg{animation:bob .45s ease-in-out infinite alternate}
+.host-svg .sequins circle{animation:twinkle 1.6s ease-in-out infinite}
+.host-svg .sequins circle:nth-child(3n){animation-delay:.5s}
+.host-svg .sequins circle:nth-child(3n+1){animation-delay:1s}
+@keyframes talk{from{transform:scaleY(.25)}to{transform:scaleY(1.15)}}
+@keyframes brow{from{transform:translateY(0)}to{transform:translateY(-3px)}}
+@keyframes bob{from{transform:rotate(-2deg) translateY(0)}to{transform:rotate(2deg) translateY(-2px)}}
+@keyframes twinkle{0%,100%{opacity:.35}50%{opacity:1}}
+
+.bubble{position:relative;background:var(--ink);color:var(--on-bright);border-radius:18px;padding:12px 14px;font:800 14.5px/1.35 var(--f-body);min-height:48px;min-width:0}
+.bubble::before{content:"";position:absolute;left:-8px;top:18px;border:8px solid transparent;border-right-color:var(--ink);border-left:0}
+.bubble .who{display:block;font:11px var(--f-display);color:var(--hot);letter-spacing:.04em;margin-bottom:3px}
+
+.stage-card{position:relative;display:grid;grid-template-columns:104px 1fr;align-items:center;gap:14px;padding:22px 16px 18px;border-radius:24px;
+  background:linear-gradient(180deg,var(--panel-2),var(--panel));border:1px solid var(--line);overflow:hidden}
+.stage-card::after{content:"";position:absolute;inset:auto -20% -60% -20%;height:120%;background:radial-gradient(closest-side,rgba(255,201,60,.18),transparent);pointer-events:none}
+.bulbs{position:absolute;top:8px;left:14px;right:14px;display:flex;justify-content:space-between}
+.bulbs i{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 8px var(--gold);animation:bulb 1.2s steps(1) infinite}
+.bulbs i:nth-child(even){animation-delay:.6s}
+@keyframes bulb{0%{opacity:1}50%{opacity:.25}}
+.host-wrap{position:relative;z-index:1}
+
+/* ---------- daily strip ---------- */
+.daily{display:grid;grid-template-columns:1fr auto;gap:10px 12px;align-items:end}
+.daily .date{display:block;font:20px var(--f-display);margin-top:6px;text-transform:capitalize}
+.renew{text-align:right;font-size:12px;color:var(--muted)}
+.renew b{display:block;font:18px var(--f-display);color:var(--gold);font-variant-numeric:tabular-nums}
+.dprog{grid-column:1/-1;height:8px;border-radius:99px;background:var(--panel);overflow:hidden}
+.dprog i{display:block;height:100%;background:linear-gradient(90deg,var(--hot),var(--gold));border-radius:inherit}
+.daily small{grid-column:1/-1;color:var(--muted);margin-top:-4px}
+
+.sec-title{display:flex;align-items:baseline;justify-content:space-between;font:18px var(--f-display);letter-spacing:.01em}
+.sec-title small{font:700 12px var(--f-body);color:var(--muted)}
+
+/* ---------- theme library ---------- */
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tcard{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-height:158px;padding:14px;border-radius:22px;text-align:left;overflow:hidden;
+  background:var(--c);color:var(--on-bright);box-shadow:0 6px 0 rgba(0,0,0,.28),inset 0 -40px 60px rgba(0,0,0,.12);transition:transform .15s}
+.tcard:active{transform:translateY(3px) scale(.98)}
+.t-bgicon{position:absolute;right:-22px;bottom:-26px;width:110px;height:110px;opacity:.17;transform:rotate(-14deg)}
+.t-bgicon svg{width:100%;height:100%}
+.t-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:rgba(22,10,43,.9);color:var(--c);margin-bottom:8px}
+.t-icon svg{width:26px;height:26px}
+.t-name{font:16px/1.05 var(--f-display)}
+.t-sub{font:800 12px var(--f-body);opacity:.75}
+.t-status{margin-top:auto;padding:4px 9px;border-radius:99px;background:rgba(22,10,43,.88);color:var(--gold);font:900 11px var(--f-body);letter-spacing:.06em;text-transform:uppercase}
+.t-status.done{color:var(--good)}
+.t-status.lost{color:#FFB4AE}
+.t-feat{position:absolute;top:12px;right:12px;padding:4px 8px;border-radius:8px;background:var(--on-bright);color:var(--gold);font:11px var(--f-display);transform:rotate(6deg);box-shadow:0 0 0 2px var(--gold)}
+
+/* ---------- tab bar ---------- */
+.tabbar{position:absolute;left:12px;right:12px;bottom:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:6px;border-radius:22px;
+  background:rgba(31,15,60,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border:1px solid var(--line);z-index:5}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;border-radius:16px;color:var(--dim);font:800 11.5px var(--f-body)}
+.tab svg{width:22px;height:22px}
+.tab[aria-current="page"]{background:var(--panel-2);color:var(--gold)}
+
+/* ---------- page headers ---------- */
+.pg-head h1{font:26px var(--f-display)}
+.pg-head p{color:var(--muted);margin-top:4px}
+.pg-head p b{color:var(--gold);font-variant-numeric:tabular-nums}
+
+/* ---------- leaderboard ---------- */
+.seg{display:flex;gap:8px;overflow-x:auto;margin:0 -16px;padding:2px 16px 6px;scrollbar-width:none}
+.seg::-webkit-scrollbar{display:none}
+.seg button{flex:none;height:34px;padding:0 14px;border-radius:99px;background:var(--panel);border:1px solid var(--line);font:800 13px var(--f-body);color:var(--muted);white-space:nowrap}
+.seg button[aria-pressed="true"]{background:var(--c,var(--gold));color:var(--on-bright);border-color:transparent}
+.podium{display:grid;grid-template-columns:1fr 1.15fr 1fr;align-items:end;gap:8px;margin-top:6px}
+.pod{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-width:0}
+.pod .nm{font:800 12.5px var(--f-body);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pod .block{width:100%;border-radius:16px 16px 6px 6px;display:grid;place-items:center;padding:10px 4px;font:15px var(--f-display)}
+.pod .block small{display:block;font:800 11px var(--f-body);opacity:.8}
+.pod.p1 .block{height:104px;background:var(--gold);color:var(--on-bright)}
+.pod.p2 .block{height:80px;background:#D9D2EA;color:var(--on-bright)}
+.pod.p3 .block{height:64px;background:#E0915A;color:var(--on-bright)}
+.pod.you .nm{color:var(--gold)}
+.board{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.row{display:grid;grid-template-columns:30px 36px 1fr auto;align-items:center;gap:10px;padding:8px 12px;border-radius:14px;background:var(--panel)}
+.row .rk{font:14px var(--f-display);color:var(--dim);text-align:center}
+.row .nm{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:800}
+.row .nm small{display:block;color:var(--dim);font-weight:700;font-size:11.5px}
+.row .sc{font:15px var(--f-display);font-variant-numeric:tabular-nums}
+.row.you{background:linear-gradient(90deg,rgba(255,201,60,.22),var(--panel));box-shadow:inset 0 0 0 2px var(--gold)}
+.row.you .rk{color:var(--gold)}
+.empty-you{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:16px;border:2px dashed var(--line)}
+
+.av{flex:none;display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:var(--c,var(--gold));color:var(--on-bright);font:13px var(--f-display);box-shadow:0 0 0 2px var(--stage)}
+.av.lg{width:64px;height:64px;font-size:22px}
+.av.xl{width:88px;height:88px;font-size:30px}
+
+/* ---------- profile ---------- */
+.prof{display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:center;padding:18px;border-radius:24px;background:linear-gradient(160deg,var(--panel-2),var(--panel));border:1px solid var(--line)}
+.ring{--p:0;padding:6px;border-radius:50%;background:conic-gradient(var(--gold) calc(var(--p)*1%),rgba(255,255,255,.1) 0)}
+.prof .ttl{font:16px var(--f-display);color:var(--gold)}
+.prof label{display:block;font:800 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-top:8px}
+.prof input{width:100%;margin-top:4px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--stage-2);color:var(--ink);padding:0 12px;font:800 16px var(--f-body)}
+.xpbar{height:10px;border-radius:99px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:10px}
+.xpbar i{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--hot),var(--gold));transition:width 1.2s cubic-bezier(.2,.8,.2,1)}
+.xpline{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-top:4px;font-variant-numeric:tabular-nums}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{padding:12px 10px;border-radius:16px;background:var(--panel);min-width:0}
+.stat b{display:block;font:20px var(--f-display);font-variant-numeric:tabular-nums}
+.stat small{color:var(--muted);font-weight:800;font-size:11.5px}
+.mastery{display:flex;flex-direction:column;gap:10px}
+.m-row{display:grid;grid-template-columns:120px 1fr 44px;gap:10px;align-items:center;font-weight:800;font-size:13px}
+.m-row .bar{height:10px;border-radius:99px;background:var(--panel);overflow:hidden}
+.m-row .bar i{display:block;height:100%;background:var(--c);border-radius:inherit}
+.m-row span:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.rules{display:flex;flex-direction:column;gap:10px}
+.rule{display:grid;grid-template-columns:48px 1fr;gap:12px;align-items:start;padding:12px;border-radius:16px;background:var(--panel)}
+.rule .rn{display:grid;place-items:center;height:48px;border-radius:12px;background:var(--rc);color:var(--on-bright);font:13px var(--f-display);text-align:center;line-height:1}
+.rule h3{font:14px var(--f-display)}
+.rule p{color:var(--muted);font-size:13.5px;margin-top:3px}
+.toggle{display:flex;align-items:center;justify-content:space-between;padding:14px;border-radius:16px;background:var(--panel);font-weight:800}
+.switch{width:52px;height:30px;border-radius:99px;background:var(--dim);position:relative;transition:background .2s}
+.switch::after{content:"";position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:var(--ink);transition:transform .2s}
+.switch[aria-checked="true"]{background:var(--good)}
+.switch[aria-checked="true"]::after{transform:translateX(22px)}
+
+/* ---------- buttons ---------- */
+.btn-primary{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:56px;padding:0 24px;border-radius:18px;background:var(--gold);color:var(--on-bright);
+  font:17px var(--f-display);letter-spacing:.02em;box-shadow:0 5px 0 #B9871A;transition:transform .1s,box-shadow .1s}
+.btn-primary:active{transform:translateY(4px);box-shadow:0 1px 0 #B9871A}
+.btn-ghost{height:48px;padding:0 18px;border-radius:16px;border:2px solid var(--line);font:800 15px var(--f-body);color:var(--ink)}
+.btn-sm{height:38px;padding:0 14px;border-radius:12px;background:var(--gold);color:var(--on-bright);font:13px var(--f-display)}
+
+/* ============ GAME ============ */
+#scr-game{padding:10px 16px 16px;gap:10px;transition:background .4s}
+#scr-game.express{background:
+  repeating-linear-gradient(-45deg,rgba(255,106,26,.10) 0 18px,transparent 18px 36px),
+  radial-gradient(100% 70% at 50% 0%,rgba(255,106,26,.35),transparent 70%),var(--stage)}
+#scr-game.hardcore{background:radial-gradient(100% 70% at 50% 0%,rgba(255,61,129,.30),transparent 70%),#0D0619}
+#scr-game.pre .g-top,#scr-game.pre .pips,#scr-game.pre .g-host{display:none}
+.g-top{display:grid;grid-template-columns:34px 1fr auto 1fr;align-items:center;gap:8px}
+.g-quit{width:34px;height:34px;border-radius:50%;background:var(--panel);display:grid;place-items:center;color:var(--muted)}
+.g-quit svg{width:16px;height:16px}
+.pl{display:flex;align-items:center;gap:8px;min-width:0}
+.pl.them{justify-content:flex-end;text-align:right}
+.pl-t{min-width:0}
+.pl-t small{display:block;font:800 11px var(--f-body);color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl-t b{display:block;font:22px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.pl.me b{color:var(--gold)}
+.g-q{text-align:center;line-height:1}
+.g-q b{font:18px var(--f-display)}
+.g-q small{color:var(--muted);font-weight:800}
+.g-mode{display:block;margin-top:4px;padding:3px 8px;border-radius:99px;background:var(--panel);font:900 9.5px var(--f-body);letter-spacing:.08em;text-transform:uppercase;color:var(--muted);white-space:nowrap}
+.pips{display:grid;grid-template-columns:repeat(25,1fr);gap:3px}
+.pips i{height:6px;border-radius:3px;background:rgba(255,255,255,.12)}
+.pips i.m-ttmc{background:rgba(255,201,60,.25)}
+.pips i.m-express{background:rgba(255,106,26,.25)}
+.pips i.m-final{background:rgba(255,61,129,.3)}
+.pips i.cur{background:var(--ink);box-shadow:0 0 8px var(--ink)}
+.pips i.ok{background:var(--good)}
+.pips i.ko{background:var(--bad)}
+.g-host{display:grid;grid-template-columns:54px 1fr;gap:12px;align-items:center}
+.g-host .bubble{font-size:13.5px;padding:9px 12px;min-height:40px}
+.g-host .bubble::before{top:12px}
+.g-stage{flex:1;display:flex;flex-direction:column;gap:12px;min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-bottom:4px}
+
+.qcard{position:relative;padding:18px 16px;border-radius:22px;background:linear-gradient(170deg,var(--panel-2),var(--panel));border:1px solid var(--line);display:flex;flex-direction:column;gap:10px;animation:cardIn .35s cubic-bezier(.2,.9,.3,1.3)}
+.qcard .qtag{align-self:flex-start;padding:4px 10px;border-radius:99px;background:var(--c,var(--gold));color:var(--on-bright);font:11px var(--f-display);letter-spacing:.03em}
+.qtext{font:800 21px/1.25 var(--f-body)}
+.visual{font:96px/1 var(--f-emoji);text-align:center;padding:4px 0;filter:drop-shadow(0 8px 14px rgba(0,0,0,.35))}
+@keyframes cardIn{from{opacity:.2;transform:translateY(16px) scale(.97)}to{opacity:1;transform:none}}
+
+.timer{display:grid;grid-template-columns:1fr 56px;gap:10px;align-items:center}
+.timer .bar{height:12px;border-radius:99px;background:var(--panel);overflow:hidden}
+.timer .bar i{display:block;height:100%;width:100%;transform-origin:left;background:linear-gradient(90deg,var(--good),var(--gold));border-radius:inherit}
+.timer.low .bar i{background:var(--bad)}
+.timer .tval{font:18px var(--f-display);text-align:right;font-variant-numeric:tabular-nums;color:var(--gold)}
+.timer.low .tval{color:var(--bad);animation:pulse .5s ease-in-out infinite alternate}
+@keyframes pulse{to{transform:scale(1.15)}}
+
+.answers{display:flex;flex-direction:column;gap:9px}
+.ans{position:relative;display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:10px 14px;border-radius:16px;text-align:left;
+  background:var(--panel);border:2px solid var(--line);font:800 16px/1.2 var(--f-body);transition:transform .1s,background .2s,opacity .2s;animation:ansIn .3s backwards}
+.ans:nth-child(2){animation-delay:.05s}.ans:nth-child(3){animation-delay:.1s}.ans:nth-child(4){animation-delay:.15s}
+@keyframes ansIn{from{opacity:0;transform:translateX(-12px)}}
+.ans:active{transform:scale(.98)}
+.ans .k{flex:none;display:grid;place-items:center;width:30px;height:30px;border-radius:9px;background:var(--stage-2);font:13px var(--f-display);color:var(--muted)}
+.ans .lbl{flex:1;min-width:0}
+.ans.good{background:var(--good);color:var(--on-bright);border-color:transparent;animation:pop .35s}
+.ans.good .k{background:rgba(22,10,43,.85);color:var(--good)}
+.ans.bad{background:var(--bad);color:#fff;border-color:transparent;animation:shake .4s}
+.ans.dim{opacity:.4}
+.botpick{position:absolute;right:10px;top:50%;margin-top:-14px;display:grid;place-items:center;width:28px;height:28px;border-radius:50%;background:var(--c);color:var(--on-bright);font:10px var(--f-display);box-shadow:0 0 0 2px var(--stage);animation:pop .3s}
+@keyframes pop{0%{transform:scale(.9)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
+@keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(3px)}}
+
+.floatpts{position:fixed;z-index:30;font:26px var(--f-display);color:var(--good);text-shadow:0 2px 0 var(--on-bright);pointer-events:none;animation:floatUp 1.1s ease-out forwards}
+.floatpts.zero{color:var(--bad)}
+@keyframes floatUp{0%{opacity:0;transform:translateY(10px) scale(.6)}20%{opacity:1;transform:translateY(0) scale(1.15)}100%{opacity:0;transform:translateY(-46px) scale(1)}}
+
+/* VS intro */
+.vs{display:flex;flex-direction:column;gap:16px;padding-top:6px}
+.vs-theme{align-self:center;display:inline-flex;align-items:center;gap:8px;padding:8px 14px;border-radius:99px;background:var(--c);color:var(--on-bright);font:15px var(--f-display)}
+.vs-theme svg{width:20px;height:20px}
+.vs-row{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+.vs-p{display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;min-width:0}
+.vs-p b{font-weight:900;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vs-p small{color:var(--muted);font-weight:800}
+.vs-p:first-child{animation:slideL .5s cubic-bezier(.2,.9,.3,1.2)}
+.vs-p:last-child{animation:slideR .5s cubic-bezier(.2,.9,.3,1.2)}
+@keyframes slideL{from{transform:translateX(-80px);opacity:0}}
+@keyframes slideR{from{transform:translateX(80px);opacity:0}}
+.vs-x{font:40px var(--f-display);color:var(--hot);text-shadow:3px 3px 0 var(--gold);transform:rotate(-8deg);animation:vsPop .6s .25s backwards cubic-bezier(.2,.9,.3,1.6)}
+@keyframes vsPop{from{transform:scale(0) rotate(-40deg)}}
+.vs-tag{align-self:center;padding:5px 12px;border-radius:8px;font:900 11px var(--f-body);letter-spacing:.12em;text-transform:uppercase;background:var(--panel);color:var(--good)}
+.vs-tag.practice{color:var(--gold)}
+.host-row{display:grid;grid-template-columns:84px 1fr;gap:12px;align-items:center}
+.vs-modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;list-style:none;margin:0;padding:0}
+.vs-modes li{padding:10px 12px;border-radius:14px;background:var(--panel);border-left:4px solid var(--rc)}
+.vs-modes b{display:block;font:12.5px var(--f-display)}
+.vs-modes span{color:var(--muted);font-size:12px;font-weight:800}
+
+/* overlays */
+.overlay{position:absolute;inset:0;z-index:20;display:grid;place-items:center;padding:16px}
+.count{font:120px var(--f-display);color:var(--gold);text-shadow:6px 6px 0 var(--hot);animation:countPop .8s ease-out}
+@keyframes countPop{0%{transform:scale(2.4);opacity:0}30%{transform:scale(1);opacity:1}100%{transform:scale(.9);opacity:.9}}
+.banner{position:relative;width:100%;display:flex;flex-direction:column;gap:14px;padding:26px 20px 22px;border-radius:28px;overflow:hidden;background:var(--bc);color:var(--on-bright);
+  box-shadow:0 20px 60px rgba(0,0,0,.5);animation:bannerIn .55s cubic-bezier(.2,.9,.3,1.3)}
+.overlay.dimmed{background:rgba(13,6,25,.78);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+@keyframes bannerIn{from{transform:scale(.6) rotate(-6deg);opacity:0}}
+.banner .b-stripes{position:absolute;inset:0;background:repeating-linear-gradient(-45deg,rgba(255,255,255,.12) 0 14px,transparent 14px 28px);animation:stripes 1.2s linear infinite;pointer-events:none}
+@keyframes stripes{to{background-position:40px 0}}
+.banner .eyebrow{color:inherit;opacity:.7}
+.banner h2{font:34px/1 var(--f-display);transform:rotate(-2deg)}
+.banner p.sub{font:900 15px var(--f-body)}
+.banner .host-row{grid-template-columns:70px 1fr}
+.banner .bubble{background:var(--on-bright);color:var(--ink)}
+.banner .bubble::before{border-right-color:var(--on-bright)}
+.banner .btn-primary{background:var(--on-bright);color:var(--bc);box-shadow:0 5px 0 rgba(0,0,0,.35)}
+.banner.b-express{animation:bannerIn .55s cubic-bezier(.2,.9,.3,1.3),siren .5s .55s 6 alternate}
+@keyframes siren{from{box-shadow:0 0 0 0 rgba(255,106,26,.9),0 20px 60px rgba(0,0,0,.5)}to{box-shadow:0 0 0 14px rgba(255,61,129,.0),0 0 60px 10px rgba(255,61,129,.6)}}
+.banner.b-final{color:var(--ink)}
+.banner.b-final .bubble{background:var(--ink);color:var(--on-bright)}
+.banner.b-final .bubble::before{border-right-color:var(--ink)}
+.banner.b-final .btn-primary{background:var(--hot);color:var(--ink);box-shadow:0 5px 0 #A01E50}
+
+.confirm{width:100%;padding:22px 18px;border-radius:24px;background:var(--panel-2);border:1px solid var(--line);display:flex;flex-direction:column;gap:14px;text-align:center}
+.confirm h3{font:20px var(--f-display)}
+.confirm .acts{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.confirm .btn-primary{height:50px;font-size:14px}
+
+/* TTMC */
+.ttmc{display:flex;flex-direction:column;gap:12px;animation:cardIn .35s}
+.ttmc h2{font:26px/1.05 var(--f-display);color:var(--gold)}
+.levels{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+.lv{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;aspect-ratio:1/1.15;max-width:100%;border-radius:16px;
+  background:color-mix(in srgb,var(--hot) calc(var(--h)*10%),var(--cyan));color:var(--on-bright);box-shadow:0 4px 0 rgba(0,0,0,.3);transition:transform .1s;animation:ansIn .3s backwards;animation-delay:calc(var(--h)*30ms)}
+.lv b{font:26px/1 var(--f-display)}
+.lv small{font:900 10.5px var(--f-body)}
+.lv:active{transform:translateY(3px)}
+.lv.picked{outline:4px solid var(--ink);transform:scale(1.08)}
+.lvbadge{align-self:flex-start;display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:99px;background:color-mix(in srgb,var(--hot) calc(var(--h)*10%),var(--cyan));color:var(--on-bright);font:12px var(--f-display)}
+
+/* Express */
+.xhead{display:flex;align-items:center;justify-content:space-between}
+.mult{position:relative;display:flex;align-items:flex-end;gap:2px;height:64px}
+.mult .flame{width:40px;height:54px;transform-origin:50% 100%;transform:scale(var(--fs,1));transition:transform .3s cubic-bezier(.2,.9,.3,1.6);animation:flicker .18s ease-in-out infinite alternate;filter:drop-shadow(0 0 calc(var(--fs,1)*8px) rgba(255,106,26,.85))}
+.mult b{font:34px/1 var(--f-display);color:var(--gold);text-shadow:2px 2px 0 var(--hot)}
+.mult.boost b{animation:pop .4s}
+.mult.hot .flame .f-in{fill:#FFFFFF}
+.mult.hot b{color:#FFF;text-shadow:0 0 14px var(--fire),2px 2px 0 var(--hot)}
+@keyframes flicker{from{transform:scale(var(--fs,1)) skewX(-3deg)}to{transform:scale(calc(var(--fs,1)*1.06)) skewX(3deg)}}
+.xcount{font:20px var(--f-display)}
+.xcount small{color:var(--muted);font-family:var(--f-body);font-weight:800}
+.xtitle{font:12px var(--f-display);letter-spacing:.08em;color:var(--fire)}
+.xcard{padding:18px 16px;border-radius:22px;background:var(--panel);border:2px solid rgba(255,106,26,.55);display:flex;flex-direction:column;gap:8px;text-align:center;animation:xIn .22s ease-out}
+@keyframes xIn{from{transform:translateX(40px);opacity:0}}
+.xcard .visual{font-size:80px}
+.xq{font:800 16.5px/1.3 var(--f-body);color:var(--muted)}
+.xprop{font:24px/1.15 var(--f-display);color:var(--ink)}
+.xtruth{font:900 14px var(--f-body);color:var(--good)}
+.xcard.ok{border-color:var(--good);background:color-mix(in srgb,var(--good) 18%,var(--panel))}
+.xcard.ko{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 18%,var(--panel));animation:shake .35s}
+.tf{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:auto}
+.tfb{height:104px;border-radius:22px;font:24px var(--f-display);color:var(--on-bright);box-shadow:0 6px 0 rgba(0,0,0,.35);transition:transform .08s}
+.tfb:active{transform:translateY(4px);box-shadow:0 2px 0 rgba(0,0,0,.35)}
+.tfb.vrai{background:var(--good)}
+.tfb.faux{background:var(--bad);color:#fff}
+.tfb.dim{opacity:.35}
+.timer.fast .bar i{background:linear-gradient(90deg,var(--fire),var(--gold))}
+
+/* Final */
+.qcard.final{border:2px solid var(--hot);box-shadow:0 0 40px rgba(255,61,129,.35)}
+.final-form{display:grid;grid-template-columns:1fr auto;gap:8px}
+.final-form input{min-width:0;height:56px;border-radius:16px;border:2px solid var(--hot);background:var(--stage-2);color:var(--ink);padding:0 14px;font:800 18px var(--f-body)}
+.final-form .btn-primary{height:56px;padding:0 16px;font-size:14px;background:var(--hot);color:var(--ink);box-shadow:0 5px 0 #A01E50}
+.hint{color:var(--dim);font-size:12.5px;text-align:center}
+.reveal{display:grid;grid-template-columns:1fr 1fr;gap:10px;animation:cardIn .35s}
+.reveal div{padding:12px;border-radius:16px;background:var(--panel)}
+.reveal small{display:block;color:var(--muted);font-weight:800;font-size:11.5px;text-transform:uppercase;letter-spacing:.1em}
+.reveal b{display:block;font:800 17px/1.2 var(--f-body);margin-top:4px;overflow-wrap:anywhere}
+.reveal .you.ok{box-shadow:inset 0 0 0 2px var(--good)} .reveal .you.ko{box-shadow:inset 0 0 0 2px var(--bad)}
+.reveal .ans-true b{color:var(--good)}
+.verdict{grid-column:1/-1;text-align:center;font:26px var(--f-display)}
+.verdict.ok{color:var(--good)} .verdict.ko{color:var(--bad)}
+
+/* ============ RESULT ============ */
+#scr-result{overflow-y:auto;padding:16px 16px 24px;gap:16px}
+.res-head{text-align:center;display:flex;flex-direction:column;gap:6px;padding-top:8px}
+.res-head h1{font:44px/1 var(--f-display);transform:rotate(-3deg);animation:vsPop .6s cubic-bezier(.2,.9,.3,1.5)}
+.res-head.win h1{color:var(--gold);text-shadow:4px 4px 0 var(--hot)}
+.res-head.lose h1{color:var(--bad);text-shadow:4px 4px 0 var(--on-bright)}
+.res-head.tie h1{color:var(--cyan);text-shadow:4px 4px 0 var(--hot)}
+.res-vs{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;padding:16px;border-radius:24px;background:var(--panel)}
+.res-vs .side{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;text-align:center}
+.res-vs .side b{font:30px/1 var(--f-display);font-variant-numeric:tabular-nums}
+.res-vs .side small{font-weight:800;color:var(--muted);max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-vs .side.win b{color:var(--gold)}
+.res-vs .mid{font:16px var(--f-display);color:var(--dim)}
+.break{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.break li{display:grid;grid-template-columns:10px 1fr auto;gap:12px;align-items:center;padding:12px 14px;border-radius:14px;background:var(--panel)}
+.break li::before{content:"";width:10px;height:10px;border-radius:3px;background:var(--rc)}
+.break li span small{display:block;color:var(--muted);font-weight:700;font-size:12px}
+.break li b{font:17px var(--f-display);font-variant-numeric:tabular-nums}
+.break li.total{background:var(--panel-2)}
+.break li.total b{color:var(--gold);font-size:22px}
+.trail{display:grid;grid-template-columns:repeat(25,1fr);gap:3px}
+.trail i{aspect-ratio:1/2.2;max-width:100%;border-radius:3px;background:var(--bad)}
+.trail i.ok{background:var(--good)} .trail i.x{background:rgba(255,255,255,.12)}
+.res-xp{padding:14px 16px;border-radius:20px;background:linear-gradient(160deg,var(--panel-2),var(--panel))}
+.res-xp .top{display:flex;justify-content:space-between;align-items:baseline}
+.res-xp .gain{font:22px var(--f-display);color:var(--gold)}
+.lvup{display:inline-block;margin-top:8px;padding:4px 10px;border-radius:8px;background:var(--gold);color:var(--on-bright);font:12px var(--f-display);animation:pop .5s .8s backwards}
+.res-rank{padding:14px 16px;border-radius:18px;border:2px solid var(--gold);font-weight:800;text-align:center}
+.res-rank b{font:22px var(--f-display);color:var(--gold)}
+.res-actions{display:flex;flex-direction:column;gap:10px}
+.res-actions .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+#confetti{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:50}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);padding:10px 16px;border-radius:12px;background:var(--ink);color:var(--on-bright);font-weight:900;z-index:60;animation:cardIn .3s}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+@media (max-width:360px){
+  .qtext{font-size:19px}.tcard{min-height:146px}.m-row{grid-template-columns:96px 1fr 40px}
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="flameGrad" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#FF3D81"/><stop offset=".5" stop-color="#FF6A1A"/><stop offset="1" stop-color="#FFC93C"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div id="app">
+  <section class="screen hub" id="scr-home"></section>
+  <section class="screen hub" id="scr-rank" hidden></section>
+  <section class="screen hub" id="scr-profile" hidden></section>
+  <section class="screen" id="scr-game" hidden></section>
+  <section class="screen" id="scr-result" hidden></section>
+  <nav class="tabbar" id="tabbar" aria-label="Navigation">
+    <button class="tab" data-tab="home" aria-current="page"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>Quizz</button>
+    <button class="tab" data-tab="rank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/></svg>Classement</button>
+    <button class="tab" data-tab="profile"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>Profil</button>
+  </nav>
+</div>
+<canvas id="confetti"></canvas>
+
+<script>
+(() => {
+'use strict';
+
+/* =========================================================
+   QUESTION BANK — [difficulté 1-10, question, bonne réponse, faux 1, faux 2, faux 3, variantes acceptées]
+   ========================================================= */
+const BANK = {
+logos: [
+[1,"Quelle marque a pour logo une pomme croquée ?","Apple","Samsung","Microsoft","Sony"],
+[1,"Un « swoosh », sorte de virgule stylisée : c'est le logo de…","Nike","Adidas","Puma","Reebok"],
+[1,"Un grand M jaune en forme d'arches dorées ?","McDonald's","Burger King","KFC","Subway","mcdo|macdo|mcdonalds"],
+[1,"Un crocodile vert brodé sur un polo ?","Lacoste","Ralph Lauren","Le Coq Sportif","Fila"],
+[1,"Trois bandes parallèles ?","Adidas","Puma","Nike","Kappa"],
+[1,"Un appareil photo stylisé sur un carré dégradé violet-orange ?","Instagram","Snapchat","Pinterest","TikTok"],
+[1,"Un téléphone blanc dans une bulle verte ?","WhatsApp","Telegram","Signal","Messenger"],
+[1,"Un triangle « lecture » blanc dans un rectangle rouge ?","YouTube","Netflix","Dailymotion","Twitch"],
+[1,"Un château de conte de fées ?","Disney","DreamWorks","Universal","Warner Bros"],
+[1,"Une vache violette ?","Milka","Lindt","Côte d'Or","Suchard"],
+[1,"Un colonel souriant à barbichette blanche ?","KFC","Popeyes","Burger King","Quick","kentucky fried chicken"],
+[1,"Un « f » blanc sur fond bleu ?","Facebook","Flickr","Fnac","Foursquare"],
+[2,"Une sirène verte à deux queues ?","Starbucks","Costa Coffee","Nespresso","Columbus Café"],
+[2,"Un petit oiseau bleu était le logo historique de…","Twitter","Facebook","Skype","Telegram","x"],
+[2,"Un cheval cabré noir sur fond jaune ?","Ferrari","Porsche","Lamborghini","Maserati"],
+[2,"Quatre anneaux entrelacés (constructeur auto) ?","Audi","Volkswagen","Opel","Toyota"],
+[2,"Un lion dressé sur ses pattes arrière (constructeur auto français) ?","Peugeot","Renault","Citroën","Alpine"],
+[2,"Deux chevrons empilés ?","Citroën","Renault","Peugeot","DS"],
+[2,"Un bonhomme blanc fait de pneus ?","Michelin","Goodyear","Pirelli","Bridgestone","bibendum"],
+[2,"Un coquillage jaune et rouge ?","Shell","TotalEnergies","BP","Esso"],
+[2,"Un petit fantôme blanc sur fond jaune ?","Snapchat","Discord","Reddit","Twitch"],
+[2,"Un petit robot vert à antennes ?","Android","Linux","iOS","Ubuntu"],
+[2,"Quatre carrés de couleur : rouge, vert, bleu et jaune ?","Microsoft","Google","Slack","eBay"],
+[2,"Une flèche orange en forme de sourire sous le nom ?","Amazon","eBay","Alibaba","Zalando"],
+[2,"Deux taureaux rouges face à face devant un soleil jaune ?","Red Bull","Monster","Burn","Rockstar"],
+[2,"Une flamme rose-orangé (appli de rencontre) ?","Tinder","Bumble","Meetic","Hinge"],
+[2,"Un « N » rouge sur fond noir ?","Netflix","NBA","Nissan","Nestlé"],
+[3,"Une étoile à trois branches dans un cercle ?","Mercedes-Benz","BMW","Chrysler","Volvo","mercedes"],
+[3,"Un taureau doré sur un écusson noir ?","Lamborghini","Ferrari","Bugatti","Maserati"],
+[3,"Un félin bondissant (marque de sport) ?","Puma","Adidas","Le Coq Sportif","Asics"],
+[3,"Un cercle découpé en quartiers bleus et blancs ?","BMW","Audi","Volvo","Mini"],
+[3,"Un panda noir et blanc (ONG) ?","WWF","Greenpeace","UNICEF","Amnesty International"],
+[3,"Une couronne à cinq pointes au-dessus du nom (montres suisses) ?","Rolex","Omega","TAG Heuer","Swatch"],
+[3,"Un renard enroulé autour d'un globe ?","Firefox","Chrome","Opera","Safari","mozilla firefox|mozilla"],
+[3,"Un cercle rouge, jaune et vert avec un point bleu au centre ?","Chrome","Firefox","Edge","Opera","google chrome"],
+[3,"Une note de musique noire aux contours cyan et rose ?","TikTok","Spotify","Deezer","Shazam"],
+[3,"Trois ondes noires sur un rond vert ?","Spotify","Deezer","Shazam","SoundCloud"],
+[3,"Deux C entrelacés dos à dos ?","Chanel","Gucci","Céline","Cartier"],
+[3,"Une petite lampe de bureau qui sautille ?","Pixar","DreamWorks","Disney","Illumination"],
+[3,"Trois griffes vertes ?","Monster Energy","Red Bull","Puma","Jägermeister","monster"],
+[3,"Un joueur de polo à cheval ?","Ralph Lauren","Lacoste","Hackett","Tommy Hilfiger","polo ralph lauren|polo"],
+[3,"Le nom de la marque coincé entre deux moitiés de pain à burger ?","Burger King","Quick","McDonald's","Five Guys"],
+[4,"Une enveloppe en forme de M multicolore ?","Gmail","Outlook","Yahoo Mail","Proton Mail"],
+[4,"Une bulle de dialogue violette avec deux traits ?","Twitch","Discord","Messenger","Slack"],
+[4,"Une manette souriante blanche sur fond bleu-violet ?","Discord","Twitch","Steam","Xbox"],
+[4,"Un avion en papier blanc sur un rond bleu ?","Telegram","Messenger","WhatsApp","Signal"],
+[4,"Un « P » blanc en forme d'épingle sur un rond rouge ?","Pinterest","PayPal","Periscope","Pixar"],
+[4,"Un basketteur en pleine extension, jambes écartées ?","Air Jordan","Spalding","Reebok","Under Armour","jordan|jumpman"],
+[4,"Un lion qui rugit dans un cercle de pellicule (studio) ?","MGM","Universal","Paramount","Warner Bros","metro goldwyn mayer"],
+[4,"Une montagne entourée d'étoiles (studio de cinéma) ?","Paramount","Universal","Columbia","20th Century Fox"],
+[4,"Deux G entrelacés (luxe italien) ?","Gucci","Givenchy","Chanel","Guess"],
+[5,"Une étoile rouge à cinq branches (bière néerlandaise) ?","Heineken","Carlsberg","Kronenbourg","Stella Artois"],
+[5,"Un pingouin assis, mascotte d'un système d'exploitation libre ?","Linux","Windows","Android","macOS","tux"],
+[5,"Un éléphant (chocolat belge) ?","Côte d'Or","Milka","Lindt","Galler"],
+[5,"Une tête de Méduse ?","Versace","Dolce & Gabbana","Armani","Prada"],
+[5,"Une calèche tirée par un cheval ?","Hermès","Longchamp","Louis Vuitton","Dior"],
+[5,"Un extraterrestre blanc à antenne sur fond orange ?","Reddit","Discord","Twitch","Snapchat"],
+[5,"Un écusson avec un cheval cabré et le mot « Stuttgart » ?","Porsche","Ferrari","Mercedes-Benz","Opel"],
+[6,"Trois losanges rouges ?","Mitsubishi","Renault","Subaru","Hyundai"],
+[6,"Un trident ?","Maserati","Lamborghini","Alfa Romeo","Ferrari"],
+[6,"Un garçon qui pêche, assis sur un croissant de lune ?","DreamWorks","Pixar","Universal","Sony Pictures"],
+[6,"Un cerf avec une croix lumineuse entre ses bois ?","Jägermeister","Hennessy","Heineken","Martini"],
+[6,"Un oiseau qui nourrit ses petits dans un nid ?","Nestlé","Danone","Lactalis","Bonduelle"],
+[6,"Une petite fleur aux pétales multicolores (produits laitiers) ?","Yoplait","Danone","Lactel","Président"],
+[6,"Un dièse « # » multicolore ?","Slack","Discord","Teams","Trello"],
+[7,"Six étoiles : l'amas des Pléiades ?","Subaru","Mitsubishi","Suzuki","Mazda"],
+[7,"Une croix rouge et un serpent qui avale un homme ?","Alfa Romeo","Lancia","Fiat","Maserati"],
+[7,"Un aigle stylisé (mode italienne) ?","Emporio Armani","Versace","Prada","Fendi","armani"],
+[8,"Un petit garçon qui regarde une étoile ?","Danone","Nestlé","Blédina","Yoplait"]
+],
+histoire: [
+[1,"En quelle année Christophe Colomb atteint-il l'Amérique ?","1492","1515","1789","1453"],
+[1,"Qui était surnommé « le Roi-Soleil » ?","Louis XIV","Louis XVI","Napoléon","François Ier","louis 14"],
+[1,"En quelle année a eu lieu la prise de la Bastille ?","1789","1792","1815","1776"],
+[1,"Quel empereur a perdu la bataille de Waterloo ?","Napoléon Ier","Louis XVIII","Charlemagne","Napoléon III","napoleon|bonaparte|napoleon bonaparte"],
+[2,"Quelle civilisation a construit les pyramides de Gizeh ?","Les Égyptiens","Les Romains","Les Mayas","Les Grecs"],
+[2,"En quelle année la Seconde Guerre mondiale s'est-elle terminée en Europe ?","1945","1944","1918","1939"],
+[2,"Qui a été le premier homme à marcher sur la Lune ?","Neil Armstrong","Buzz Aldrin","Youri Gagarine","John Glenn","armstrong"],
+[2,"Quelle héroïne a libéré Orléans en 1429 ?","Jeanne d'Arc","Marie Curie","Catherine de Médicis","Aliénor d'Aquitaine"],
+[2,"En quelle année est tombé le mur de Berlin ?","1989","1991","1961","1985"],
+[2,"Quel paquebot a coulé en 1912 après avoir heurté un iceberg ?","Le Titanic","Le Lusitania","Le Britannic","Le Queen Mary"],
+[3,"Qui fut le premier président de la Ve République ?","Charles de Gaulle","Georges Pompidou","François Mitterrand","Vincent Auriol","de gaulle"],
+[3,"Dans quelle ville John F. Kennedy a-t-il été assassiné ?","Dallas","Washington","New York","Houston"],
+[3,"Quel roi de France a été guillotiné en 1793 ?","Louis XVI","Louis XV","Charles X","Louis XIV","louis 16"],
+[3,"En quelle année a eu lieu le débarquement en Normandie ?","1944","1942","1945","1943"],
+[3,"Quelle était la capitale de l'Empire byzantin ?","Constantinople","Rome","Athènes","Alexandrie","byzance|istanbul"],
+[3,"Quel pharaon est célèbre pour son tombeau découvert presque intact en 1922 ?","Toutânkhamon","Ramsès II","Khéops","Akhenaton","toutankhamon|tutankhamon"],
+[3,"Quel chef gaulois s'est rendu à Jules César à Alésia ?","Vercingétorix","Astérix","Ambiorix","Brennus"],
+[4,"En quelle année a débuté la Première Guerre mondiale ?","1914","1912","1916","1918"],
+[4,"Quel empire était dirigé par Gengis Khan ?","L'Empire mongol","L'Empire ottoman","L'Empire perse","L'Empire byzantin","mongol|empire mongol"],
+[4,"Qui était président des États-Unis pendant la guerre de Sécession ?","Abraham Lincoln","George Washington","Thomas Jefferson","Ulysses S. Grant","lincoln"],
+[4,"Quelle reine d'Égypte fut l'alliée de Marc Antoine ?","Cléopâtre","Néfertiti","Hatchepsout","Néfertari"],
+[4,"Quel traité a mis fin à la Première Guerre mondiale avec l'Allemagne en 1919 ?","Le traité de Versailles","Le traité de Rome","Le traité de Paris","Le traité de Westphalie","versailles"],
+[5,"Quelle bataille de 1515 est restée célèbre grâce à François Ier ?","Marignan","Pavie","Azincourt","Austerlitz"],
+[5,"Quel chancelier a unifié l'Allemagne en 1871 ?","Otto von Bismarck","Guillaume II","Frédéric le Grand","Konrad Adenauer","bismarck"],
+[5,"Quelle ville romaine a été ensevelie par l'éruption du Vésuve en 79 ?","Pompéi","Carthage","Syracuse","Ostie"],
+[5,"En quelle année les Françaises ont-elles voté pour la première fois ?","1945","1936","1919","1958"],
+[5,"Quel navigateur portugais a ouvert la route maritime vers l'Inde en 1498 ?","Vasco de Gama","Magellan","Bartolomeu Dias","Pedro Álvares Cabral","gama"],
+[5,"Quelle dynastie a régné sur la Chine de 1644 à 1912 ?","Qing","Ming","Han","Tang"],
+[6,"Comment s'appelait le navire des pèlerins arrivés en Amérique en 1620 ?","Le Mayflower","La Santa María","Le Victory","L'Endeavour"],
+[6,"Quel roi a signé l'édit de Nantes en 1598 ?","Henri IV","Louis XIII","François Ier","Henri III","henri 4"],
+[6,"Quelle bataille de 1805 est surnommée « la bataille des Trois Empereurs » ?","Austerlitz","Iéna","Wagram","Trafalgar"],
+[6,"Qui fut le dernier tsar de Russie ?","Nicolas II","Alexandre III","Pierre le Grand","Ivan IV","nicolas 2"],
+[6,"En quelle année Constantinople est-elle tombée aux mains des Ottomans ?","1453","1204","1492","1389"],
+[7,"Quel empereur romain aurait voulu nommer son cheval consul ?","Caligula","Néron","Commode","Tibère"],
+[7,"Quelle reine a été surnommée « l'Autrichienne » ?","Marie-Antoinette","Joséphine de Beauharnais","Marie de Médicis","Catherine de Médicis"],
+[7,"Qui fut le premier empereur romain ?","Auguste","Jules César","Néron","Trajan","octave|octavien|augustus"],
+[7,"Quel explorateur a donné son nom au détroit qui contourne l'Amérique du Sud ?","Magellan","Drake","Cook","Cartier","fernand de magellan"],
+[7,"En quelle année Napoléon a-t-il été sacré empereur ?","1804","1799","1810","1815"],
+[8,"Pour quelle cité Hannibal a-t-il traversé les Alpes avec ses éléphants ?","Carthage","Sparte","Athènes","Tyr"],
+[8,"Quelle guerre a opposé la France et l'Angleterre de 1337 à 1453 ?","La guerre de Cent Ans","La guerre de Trente Ans","La guerre de Sept Ans","La guerre des Deux-Roses","cent ans"],
+[8,"Quel président américain a démissionné après le scandale du Watergate ?","Richard Nixon","Gerald Ford","Jimmy Carter","Lyndon Johnson","nixon"],
+[9,"Sur quelle cité aztèque a été bâtie Mexico ?","Tenochtitlan","Cuzco","Teotihuacan","Chichén Itzá"],
+[9,"Quel roi franc a été baptisé à Reims ?","Clovis","Dagobert","Pépin le Bref","Charles Martel","clovis ier|clovis 1er"],
+[10,"Quelle bataille de 732 est attribuée à Charles Martel ?","Poitiers","Bouvines","Roncevaux","Tolbiac","tours"],
+[10,"Qui fut le dernier empereur romain d'Occident ?","Romulus Augustule","Constantin","Théodose","Justinien","romulus augustulus"]
+],
+geo: [
+[1,"Quelle est la capitale de l'Italie ?","Rome","Milan","Naples","Turin"],
+[1,"Quel est le plus grand océan du monde ?","Le Pacifique","L'Atlantique","L'océan Indien","L'Arctique","pacifique|ocean pacifique"],
+[1,"Sur quel continent se trouve le Kenya ?","L'Afrique","L'Asie","L'Amérique du Sud","L'Océanie"],
+[1,"Quelle est la capitale de l'Espagne ?","Madrid","Barcelone","Séville","Valence"],
+[1,"Quel pays a la forme d'une botte ?","L'Italie","La Grèce","Le Portugal","Le Chili"],
+[2,"Quel est le plus long fleuve de France ?","La Loire","La Seine","Le Rhône","La Garonne"],
+[2,"Quelle est la capitale du Japon ?","Tokyo","Kyoto","Osaka","Séoul"],
+[2,"Quel est le plus haut sommet des Alpes ?","Le mont Blanc","Le Cervin","Le mont Rose","La Barre des Écrins"],
+[2,"Dans quel pays se trouve Marrakech ?","Le Maroc","La Tunisie","L'Algérie","L'Égypte"],
+[2,"Quelle est la capitale de l'Allemagne ?","Berlin","Munich","Francfort","Hambourg"],
+[2,"Quel est le plus haut sommet du monde ?","L'Everest","Le K2","Le Kilimandjaro","L'Aconcagua"],
+[3,"Quel est le plus grand pays du monde en superficie ?","La Russie","Le Canada","La Chine","Les États-Unis"],
+[3,"Quelle est la capitale de l'Australie ?","Canberra","Sydney","Melbourne","Perth"],
+[3,"Quel est le plus grand désert chaud du monde ?","Le Sahara","Le Gobi","Le Kalahari","L'Atacama"],
+[3,"Quelle est la capitale du Canada ?","Ottawa","Toronto","Montréal","Vancouver"],
+[3,"Quel fleuve traverse Le Caire ?","Le Nil","Le Congo","Le Niger","L'Euphrate"],
+[4,"Quelle est la capitale du Brésil ?","Brasília","Rio de Janeiro","São Paulo","Salvador"],
+[4,"Dans quel pays se trouve le Machu Picchu ?","Le Pérou","La Bolivie","Le Mexique","Le Chili"],
+[4,"Quelle est la capitale de la Turquie ?","Ankara","Istanbul","Izmir","Antalya"],
+[4,"Quelle mer sépare l'Europe de l'Afrique ?","La Méditerranée","La mer Rouge","La mer Noire","La mer Baltique","mer mediterranee"],
+[4,"Quel pays est le plus peuplé du monde depuis 2023 ?","L'Inde","La Chine","Les États-Unis","L'Indonésie"],
+[5,"Quelle est la capitale fédérale de la Suisse ?","Berne","Genève","Zurich","Lausanne","bern"],
+[5,"Quel est le plus grand lac d'Afrique ?","Le lac Victoria","Le lac Tanganyika","Le lac Malawi","Le lac Tchad","victoria"],
+[5,"Quel détroit sépare l'Espagne du Maroc ?","Gibraltar","Le Bosphore","Ormuz","Magellan","detroit de gibraltar"],
+[5,"Dans quel océan se trouve Madagascar ?","L'océan Indien","L'Atlantique","Le Pacifique","L'océan Austral","indien"],
+[5,"Quelle est la capitale de la Nouvelle-Zélande ?","Wellington","Auckland","Christchurch","Queenstown"],
+[5,"Quelle est la capitale du Maroc ?","Rabat","Casablanca","Marrakech","Fès"],
+[6,"Combien de pays partagent une frontière terrestre avec la France métropolitaine ?","8","6","5","10","huit"],
+[6,"Quel est le pays le plus peuplé d'Afrique ?","Le Nigeria","L'Égypte","L'Éthiopie","L'Afrique du Sud"],
+[6,"Quelle est la capitale du Kenya ?","Nairobi","Mombasa","Kampala","Addis-Abeba"],
+[6,"Quelle chaîne de montagnes marque la limite entre l'Europe et l'Asie ?","L'Oural","Les Carpates","L'Himalaya","Les Alpes dinariques","oural|monts oural"],
+[7,"Quelle est la capitale du Vietnam ?","Hanoï","Hô Chi Minh-Ville","Da Nang","Hué"],
+[7,"Quel fleuve traverse Budapest ?","Le Danube","Le Rhin","L'Elbe","La Vistule"],
+[7,"Quel est le point le plus bas des terres émergées ?","La mer Morte","La vallée de la Mort","Le lac Assal","La dépression de Qattara"],
+[8,"Quelle est la capitale de la Mongolie ?","Oulan-Bator","Astana","Bichkek","Tachkent","oulan bator|ulaanbaatar|oulan baatar"],
+[8,"Quel pays possède le plus de fuseaux horaires, territoires d'outre-mer compris ?","La France","La Russie","Les États-Unis","Le Royaume-Uni"],
+[8,"Quelle est la capitale de l'Éthiopie ?","Addis-Abeba","Nairobi","Asmara","Khartoum"],
+[9,"Quel est le plus long fleuve d'Asie ?","Le Yangzi Jiang","Le Mékong","Le Gange","L'Indus","yangzi|yangtse|yang tse|yangtze|fleuve bleu"],
+[9,"Quelle est la capitale du Kazakhstan ?","Astana","Almaty","Tachkent","Bakou"],
+[9,"Avec le Paraguay, quel pays d'Amérique du Sud n'a aucun accès à la mer ?","La Bolivie","L'Uruguay","L'Équateur","Le Venezuela"],
+[10,"Quelle est la capitale du Burkina Faso ?","Ouagadougou","Bamako","Niamey","Bobo-Dioulasso"],
+[10,"Quelle est la capitale du Bhoutan ?","Thimphou","Katmandou","Dacca","Paro","thimphu"]
+],
+sport: [
+[1,"Combien de joueurs compte une équipe de football sur le terrain ?","11","10","12","9","onze"],
+[1,"Dans quel sport utilise-t-on un ballon ovale ?","Le rugby","Le handball","Le volley-ball","Le basket"],
+[1,"Quel pays a remporté la Coupe du monde de football 2018 ?","La France","La Croatie","La Belgique","Le Brésil"],
+[1,"Quel sport pratique Teddy Riner ?","Le judo","La lutte","Le karaté","La boxe"],
+[1,"Dans quelle ville se sont déroulés les Jeux olympiques d'été 2024 ?","Paris","Los Angeles","Tokyo","Londres"],
+[2,"Combien de joueurs d'une équipe de basket sont sur le terrain ?","5","6","7","4","cinq"],
+[2,"Quel tournoi du Grand Chelem se joue sur terre battue à Paris ?","Roland-Garros","Wimbledon","L'US Open","L'Open d'Australie"],
+[2,"Quelle est la distance d'un marathon ?","42,195 km","40 km","42 km","45,5 km"],
+[2,"Dans quel pays sont nés les Jeux olympiques antiques ?","La Grèce","L'Italie","L'Égypte","La Turquie"],
+[3,"Combien de temps dure un match de football, hors prolongations ?","90 minutes","80 minutes","100 minutes","60 minutes"],
+[3,"Quel capitaine argentin a soulevé la Coupe du monde 2022 ?","Lionel Messi","Diego Maradona","Ángel Di María","Sergio Agüero","messi"],
+[3,"Dans quel sport s'illustre Léon Marchand ?","La natation","L'athlétisme","Le cyclisme","L'escrime"],
+[3,"Quel pays a vu naître le judo ?","Le Japon","La Chine","La Corée du Sud","La Thaïlande"],
+[3,"Quelle est la couleur du maillot du leader du Tour de France ?","Jaune","Vert","À pois rouges","Blanc"],
+[3,"Quel sport se joue avec un volant ?","Le badminton","Le squash","Le padel","Le tennis de table"],
+[3,"Combien de joueurs compte une équipe de volley-ball sur le terrain ?","6","5","7","8","six"],
+[3,"En quelle année la France a-t-elle remporté sa première Coupe du monde de football ?","1998","2002","1984","1986"],
+[3,"Combien de trous compte un parcours de golf standard ?","18","9","12","21","dix huit"],
+[4,"Quel athlète jamaïcain détient le record du monde du 100 m ?","Usain Bolt","Yohan Blake","Asafa Powell","Tyson Gay","bolt"],
+[4,"Combien de fois Rafael Nadal a-t-il remporté Roland-Garros ?","14","12","10","9","quatorze"],
+[4,"Quel club de football est surnommé « les Gones » ?","L'Olympique lyonnais","L'AS Saint-Étienne","L'Olympique de Marseille","Le FC Nantes","lyon|ol"],
+[4,"Quel coureur slovène a gagné le Tour de France en 2020, 2021 et 2024 ?","Tadej Pogačar","Primož Roglič","Jonas Vingegaard","Egan Bernal","pogacar"],
+[4,"Dans quelle ville se trouve le stade de Wembley ?","Londres","Manchester","Liverpool","Birmingham"],
+[4,"Quel joueur français a remporté le Ballon d'or en 1998 ?","Zinédine Zidane","Thierry Henry","Lilian Thuram","Didier Deschamps","zidane|zizou"],
+[5,"Combien de titres NBA Michael Jordan a-t-il remportés ?","6","4","5","7","six"],
+[5,"Quel pilote partage avec Lewis Hamilton le record de 7 titres en F1 ?","Michael Schumacher","Ayrton Senna","Sebastian Vettel","Alain Prost","schumacher"],
+[5,"Quelle nation a remporté le plus de Coupes du monde de rugby ?","L'Afrique du Sud","La Nouvelle-Zélande","L'Australie","L'Angleterre"],
+[5,"Combien de sets faut-il gagner pour remporter un match masculin en Grand Chelem ?","3","2","4","5","trois"],
+[6,"Quel boxeur se faisait appeler « The Greatest » ?","Mohamed Ali","Mike Tyson","Joe Frazier","George Foreman","muhammad ali|ali|cassius clay"],
+[6,"Quelle joueuse a remporté 23 titres du Grand Chelem en simple ?","Serena Williams","Steffi Graf","Venus Williams","Martina Navrátilová","serena"],
+[6,"Quelle ville a accueilli les premiers Jeux olympiques modernes en 1896 ?","Athènes","Paris","Londres","Rome"],
+[7,"Quel nageur détient le record de 23 médailles d'or olympiques ?","Michael Phelps","Mark Spitz","Ian Thorpe","Ryan Lochte","phelps"],
+[7,"Qui a rénové les Jeux olympiques à la fin du XIXe siècle ?","Pierre de Coubertin","Jules Rimet","Henri Desgrange","Jean Bouin","coubertin"],
+[8,"Quel pays a remporté la première Coupe du monde de football en 1930 ?","L'Uruguay","L'Argentine","Le Brésil","L'Italie"],
+[8,"Quel perchiste suédois bat sans cesse le record du monde ?","Armand Duplantis","Renaud Lavillenie","Sergueï Bubka","Sam Kendricks","duplantis|mondo duplantis|mondo"],
+[9,"Quel Français a remporté Roland-Garros en 1983 ?","Yannick Noah","Henri Leconte","Guy Forget","Cédric Pioline","noah"],
+[9,"En quelle année a été créé le Tour de France ?","1903","1919","1895","1925"],
+[9,"Quel nom portait le trophée de la Coupe du monde de football jusqu'en 1970 ?","La coupe Jules Rimet","La coupe Henri Delaunay","La coupe Coubertin","La coupe Goddet","jules rimet"],
+[10,"Quelle Française a remporté le 200 m et le 400 m aux JO d'Atlanta en 1996 ?","Marie-José Pérec","Christine Arron","Muriel Hurtis","Eunice Barber","perec"]
+],
+arts: [
+[1,"Qui a peint La Joconde ?","Léonard de Vinci","Michel-Ange","Raphaël","Botticelli","de vinci|da vinci"],
+[1,"Qui a écrit « Les Misérables » ?","Victor Hugo","Émile Zola","Gustave Flaubert","Honoré de Balzac","hugo"],
+[1,"Dans quel musée est exposée La Joconde ?","Le Louvre","Le musée d'Orsay","Le Prado","Les Offices"],
+[1,"Quel personnage de conte perd une pantoufle de verre ?","Cendrillon","Blanche-Neige","La Belle au bois dormant","Raiponce"],
+[2,"Qui a écrit « Le Petit Prince » ?","Antoine de Saint-Exupéry","Jules Verne","Albert Camus","Marcel Pagnol","saint exupery"],
+[2,"Quel peintre s'est tranché une partie de l'oreille ?","Vincent van Gogh","Paul Gauguin","Claude Monet","Pablo Picasso","van gogh"],
+[2,"Qui a écrit « Roméo et Juliette » ?","William Shakespeare","Molière","Victor Hugo","Jean Racine","shakespeare"],
+[2,"Qui a écrit « Vingt mille lieues sous les mers » ?","Jules Verne","Alexandre Dumas","H. G. Wells","Victor Hugo","verne"],
+[3,"À quel mouvement artistique associe-t-on Claude Monet ?","L'impressionnisme","Le cubisme","Le surréalisme","Le fauvisme"],
+[3,"Qui a sculpté « Le Penseur » ?","Auguste Rodin","Camille Claudel","Michel-Ange","Auguste Bartholdi","rodin"],
+[3,"Qui a écrit « Les Trois Mousquetaires » ?","Alexandre Dumas","Victor Hugo","Eugène Sue","Théophile Gautier","dumas"],
+[3,"Quel dramaturge a écrit « Le Malade imaginaire » ?","Molière","Corneille","Racine","Marivaux"],
+[3,"Qui a peint « Guernica » ?","Pablo Picasso","Salvador Dalí","Joan Miró","Francisco de Goya","picasso"],
+[4,"Quel peintre surréaliste a peint des montres molles ?","Salvador Dalí","René Magritte","Max Ernst","Joan Miró","dali"],
+[4,"Qui a écrit « L'Étranger » ?","Albert Camus","Jean-Paul Sartre","André Gide","Boris Vian","camus"],
+[4,"Qui a écrit « Germinal » ?","Émile Zola","Guy de Maupassant","Victor Hugo","Gustave Flaubert","zola"],
+[4,"Qui a peint le plafond de la chapelle Sixtine ?","Michel-Ange","Raphaël","Léonard de Vinci","Le Caravage","michelangelo"],
+[4,"Quel compositeur, devenu sourd, a écrit la 9e symphonie et son « Hymne à la joie » ?","Ludwig van Beethoven","Wolfgang Amadeus Mozart","Jean-Sébastien Bach","Frédéric Chopin","beethoven"],
+[4,"Quel peintre a immortalisé les nymphéas de son jardin de Giverny ?","Claude Monet","Édouard Manet","Auguste Renoir","Camille Pissarro","monet"],
+[4,"Quelle romancière a créé le détective Hercule Poirot ?","Agatha Christie","Mary Higgins Clark","P. D. James","Fred Vargas","christie"],
+[4,"Qui a écrit « Le Comte de Monte-Cristo » ?","Alexandre Dumas","Victor Hugo","Jules Verne","Honoré de Balzac","dumas"],
+[5,"Qui a écrit « Madame Bovary » ?","Gustave Flaubert","Stendhal","Honoré de Balzac","Émile Zola","flaubert"],
+[5,"Quel peintre néerlandais a peint « La Jeune Fille à la perle » ?","Johannes Vermeer","Rembrandt","Vincent van Gogh","Pieter Bruegel","vermeer"],
+[5,"Qui a écrit « 1984 » ?","George Orwell","Aldous Huxley","Ray Bradbury","Philip K. Dick","orwell"],
+[5,"Quel poète a écrit « Les Fleurs du mal » ?","Charles Baudelaire","Arthur Rimbaud","Paul Verlaine","Stéphane Mallarmé","baudelaire"],
+[5,"Qui a peint « Le Cri » ?","Edvard Munch","Gustav Klimt","Egon Schiele","Paul Klee","munch"],
+[5,"Qui a écrit « Le Rouge et le Noir » ?","Stendhal","Honoré de Balzac","Gustave Flaubert","Victor Hugo"],
+[6,"Qui a écrit « À la recherche du temps perdu » ?","Marcel Proust","André Gide","Louis-Ferdinand Céline","Colette","proust"],
+[6,"Quel compositeur a écrit « Les Quatre Saisons » ?","Antonio Vivaldi","Jean-Sébastien Bach","Georg Friedrich Haendel","Wolfgang Amadeus Mozart","vivaldi"],
+[6,"Dans quelle ville se trouve le musée du Prado ?","Madrid","Barcelone","Lisbonne","Séville"],
+[7,"Qui a écrit « Cent ans de solitude » ?","Gabriel García Márquez","Jorge Luis Borges","Pablo Neruda","Mario Vargas Llosa","garcia marquez|marquez"],
+[7,"Quel peintre a réalisé « La Naissance de Vénus » ?","Sandro Botticelli","Titien","Raphaël","Le Caravage","botticelli"],
+[7,"Qui a écrit « Les Liaisons dangereuses » ?","Choderlos de Laclos","Marivaux","Denis Diderot","Voltaire","laclos"],
+[7,"Quel artiste a exposé un urinoir signé « R. Mutt » ?","Marcel Duchamp","Andy Warhol","Man Ray","Jean Arp","duchamp"],
+[8,"Qui a peint « Le Radeau de la Méduse » ?","Théodore Géricault","Eugène Delacroix","Jacques-Louis David","Jean-Auguste-Dominique Ingres","gericault"],
+[8,"Qui a composé l'opéra « Carmen » ?","Georges Bizet","Giuseppe Verdi","Giacomo Puccini","Jacques Offenbach","bizet"],
+[9,"Quel poète a écrit « Le Bateau ivre » ?","Arthur Rimbaud","Paul Verlaine","Charles Baudelaire","Guillaume Apollinaire","rimbaud"],
+[9,"Qui a peint « Un dimanche après-midi à l'île de la Grande Jatte » ?","Georges Seurat","Paul Signac","Henri de Toulouse-Lautrec","Camille Pissarro","seurat"],
+[10,"Qui a écrit « Gargantua » ?","François Rabelais","Michel de Montaigne","Pierre de Ronsard","François Villon","rabelais"],
+[10,"Quel architecte a conçu la pyramide du Louvre ?","Ieoh Ming Pei","Jean Nouvel","Frank Gehry","Renzo Piano","pei|i m pei|ming pei"]
+],
+sciences: [
+[1,"Quelle planète est surnommée la planète rouge ?","Mars","Jupiter","Vénus","Saturne"],
+[1,"Quelle est la formule chimique de l'eau ?","H2O","CO2","O2","H2O2"],
+[1,"Combien de pattes a une araignée ?","8","6","10","12","huit"],
+[1,"Quel organe pompe le sang dans le corps ?","Le cœur","Les poumons","Le foie","Les reins"],
+[2,"Quelle est la planète la plus proche du Soleil ?","Mercure","Vénus","Mars","La Terre"],
+[2,"Quel gaz les plantes absorbent-elles pour la photosynthèse ?","Le dioxyde de carbone","L'oxygène","L'azote","L'hélium","co2"],
+[2,"À quelle température l'eau bout-elle au niveau de la mer ?","100 °C","90 °C","120 °C","80 °C","100"],
+[2,"Quelle est la plus grande planète du système solaire ?","Jupiter","Saturne","Neptune","Uranus"],
+[2,"Comment appelle-t-on un animal qui mange de tout ?","Omnivore","Herbivore","Carnivore","Insectivore"],
+[3,"Quel est le symbole chimique de l'or ?","Au","Or","Ag","Go"],
+[3,"Qui a formulé la théorie de la relativité ?","Albert Einstein","Isaac Newton","Niels Bohr","Max Planck","einstein"],
+[3,"Quel est le plus grand organe du corps humain ?","La peau","Le foie","Le cerveau","L'intestin"],
+[3,"Quelle molécule porte l'information génétique ?","L'ADN","Le glucose","Le cholestérol","L'hémoglobine","adn|dna"],
+[4,"Combien d'os compte le squelette humain adulte ?","206","186","256","212"],
+[4,"Quelle est la vitesse de la lumière dans le vide, environ ?","300 000 km/s","30 000 km/s","3 000 km/s","3 millions de km/s"],
+[4,"Qui a découvert la pénicilline ?","Alexander Fleming","Louis Pasteur","Marie Curie","Robert Koch","fleming"],
+[4,"Quel est le symbole chimique du fer ?","Fe","Fr","Ir","F"],
+[4,"Quel savant a mis au point le vaccin contre la rage ?","Louis Pasteur","Edward Jenner","Alexander Fleming","Robert Koch","pasteur"],
+[4,"Quelle particule porte une charge électrique négative ?","L'électron","Le proton","Le neutron","Le photon"],
+[4,"Quel scientifique a proposé la théorie de l'évolution par sélection naturelle ?","Charles Darwin","Jean-Baptiste de Lamarck","Gregor Mendel","Buffon","darwin"],
+[5,"Quel est le gaz le plus abondant dans l'atmosphère terrestre ?","L'azote","L'oxygène","Le dioxyde de carbone","L'argon","diazote"],
+[5,"Quelle scientifique a reçu deux prix Nobel dans deux sciences différentes ?","Marie Curie","Irène Joliot-Curie","Rosalind Franklin","Ada Lovelace","curie"],
+[5,"Quelle est l'unité de mesure de la résistance électrique ?","L'ohm","Le volt","L'ampère","Le watt"],
+[5,"Quel est le symbole chimique du sodium ?","Na","So","Sd","S"],
+[5,"Combien de temps met la lumière du Soleil pour atteindre la Terre, environ ?","8 minutes","8 secondes","1 heure","1 seconde"],
+[5,"Combien de chromosomes compte une cellule humaine normale ?","46","23","44","48"],
+[5,"Quel métal est liquide à température ambiante ?","Le mercure","Le plomb","L'étain","Le sodium"],
+[6,"Quel est l'os le plus long du corps humain ?","Le fémur","Le tibia","L'humérus","Le péroné"],
+[6,"Quel physicien a formulé la loi de la gravitation universelle ?","Isaac Newton","Galilée","Johannes Kepler","Albert Einstein","newton"],
+[6,"Quel est l'élément chimique le plus léger ?","L'hydrogène","L'hélium","Le lithium","Le carbone"],
+[6,"Quelle planète compte le plus de lunes connues ?","Saturne","Jupiter","Uranus","Neptune"],
+[7,"Quel est le symbole chimique du potassium ?","K","P","Po","Pt"],
+[7,"Combien de cœurs possède une pieuvre ?","3","1","2","8","trois"],
+[7,"Quel est le numéro atomique du carbone ?","6","12","8","4","six"],
+[7,"Quelle est la grande galaxie spirale la plus proche de la Voie lactée ?","Andromède","La galaxie du Triangle","Le Sombrero","Le Tourbillon","andromede"],
+[8,"Quelle planète tourne sur elle-même dans le sens inverse de la Terre ?","Vénus","Mars","Mercure","Neptune"],
+[8,"Quel moine est considéré comme le père de la génétique ?","Gregor Mendel","Charles Darwin","Jean-Baptiste de Lamarck","James Watson","mendel"],
+[9,"Quel savant a découvert la radioactivité naturelle en 1896 ?","Henri Becquerel","Pierre Curie","Ernest Rutherford","Wilhelm Röntgen","becquerel"],
+[10,"Quel est le symbole chimique du tungstène ?","W","Tu","Tg","Ts"],
+[10,"Quelle unité du Système international mesure l'intensité lumineuse ?","La candela","Le lux","Le lumen","Le watt"]
+],
+cinema: [
+[1,"Quel sorcier porte une cicatrice en forme d'éclair ?","Harry Potter","Gandalf","Merlin","Albus Dumbledore"],
+[1,"Dans « Le Roi Lion », comment s'appelle le jeune lion ?","Simba","Mufasa","Scar","Nala"],
+[1,"Comment s'appelle le cow-boy de « Toy Story » ?","Woody","Buzz","Jessie","Rex"],
+[1,"Quel ogre vert vit dans un marais ?","Shrek","Hulk","Le Grinch","Yoda"],
+[2,"Qui a réalisé « Jurassic Park » ?","Steven Spielberg","James Cameron","George Lucas","Ridley Scott","spielberg"],
+[2,"Comment s'appelle le vaisseau de Han Solo ?","Le Faucon Millenium","L'Enterprise","Le Nostromo","Le Discovery","millenium falcon|millennium falcon|faucon millennium"],
+[2,"Dans quelle série se dispute-t-on le Trône de fer ?","Game of Thrones","The Witcher","Vikings","Les Anneaux de pouvoir","got"],
+[2,"Quel acteur incarne Jack dans « Titanic » ?","Leonardo DiCaprio","Brad Pitt","Matt Damon","Johnny Depp","dicaprio"],
+[2,"Quel acteur joue le pirate Jack Sparrow ?","Johnny Depp","Orlando Bloom","Keanu Reeves","Hugh Jackman","depp"],
+[3,"Dans « Bienvenue chez les Ch'tis », dans quelle ville Philippe est-il muté ?","Bergues","Lille","Dunkerque","Calais"],
+[3,"Quel personnage lance « Je suis ton père » ?","Dark Vador","Mufasa","L'empereur Palpatine","Obi-Wan Kenobi","vador|darth vader"],
+[3,"Dans quelle série suit-on Walter White, prof de chimie ?","Breaking Bad","Dexter","The Wire","Ozark"],
+[3,"Quel film d'animation met en scène la reine Elsa ?","La Reine des neiges","Raiponce","Vaiana","Rebelle","frozen"],
+[3,"Quel film de 2011 réunit Omar Sy et François Cluzet ?","Intouchables","Les Visiteurs","Le Dîner de cons","Bienvenue chez les Ch'tis"],
+[3,"Comment s'appelle le petit robot nettoyeur du film Pixar de 2008 ?","WALL-E","EVE","R2-D2","Baymax","wall e|walle"],
+[3,"Quel festival de cinéma décerne la Palme d'or ?","Cannes","Venise","Berlin","Deauville","festival de cannes"],
+[4,"Dans « Le Seigneur des anneaux », qui porte l'Anneau jusqu'au Mordor ?","Frodon","Sam","Aragorn","Gandalf","frodo|frodon sacquet"],
+[4,"Qui a réalisé « Pulp Fiction » ?","Quentin Tarantino","Martin Scorsese","David Fincher","Guy Ritchie","tarantino"],
+[4,"Quelle série coréenne met en scène des jeux d'enfants mortels ?","Squid Game","Kingdom","Sweet Home","Hellbound"],
+[4,"Dans « Matrix », quelle pilule Neo avale-t-il ?","La rouge","La bleue","La verte","La blanche"],
+[5,"Quelle actrice joue Hermione Granger ?","Emma Watson","Emma Stone","Keira Knightley","Natalie Portman","watson"],
+[5,"Dans quelle ville se déroule la série « Friends » ?","New York","Los Angeles","Chicago","Boston"],
+[5,"Quel film a remporté l'Oscar du meilleur film lors de la cérémonie 2020 ?","Parasite","1917","Joker","Once Upon a Time… in Hollywood"],
+[5,"Quel réalisateur japonais a créé « Le Voyage de Chihiro » ?","Hayao Miyazaki","Isao Takahata","Makoto Shinkai","Satoshi Kon","miyazaki"],
+[6,"Comment s'appelle le café où se retrouvent les amis de « Friends » ?","Central Perk","Monk's Café","Luke's","MacLaren's"],
+[6,"Quel film de Luc Besson (1997) met en scène Leeloo ?","Le Cinquième Élément","Nikita","Léon","Lucy","cinquieme element|fifth element"],
+[6,"Quel acteur a reçu l'Oscar en 2020 pour son rôle du Joker ?","Joaquin Phoenix","Heath Ledger","Jared Leto","Jack Nicholson","phoenix"],
+[6,"Dans « Stranger Things », comment s'appelle la dimension parallèle ?","Le Monde à l'envers","La Zone fantôme","L'Autre Côté","Le Néant","upside down"],
+[7,"Quel fut le premier long-métrage d'animation de Disney, en 1937 ?","Blanche-Neige et les Sept Nains","Pinocchio","Fantasia","Bambi","blanche neige"],
+[7,"Quelle actrice française a reçu l'Oscar pour « La Môme » ?","Marion Cotillard","Juliette Binoche","Audrey Tautou","Isabelle Huppert","cotillard"],
+[7,"Qui a réalisé « Inception » et « Interstellar » ?","Christopher Nolan","Denis Villeneuve","Ridley Scott","James Cameron","nolan"],
+[8,"Dans « Le Parrain » (1972), quel acteur joue Vito Corleone ?","Marlon Brando","Al Pacino","Robert De Niro","James Caan","brando"],
+[8,"Qui a réalisé « Le Fabuleux Destin d'Amélie Poulain » ?","Jean-Pierre Jeunet","Luc Besson","Jacques Audiard","François Ozon","jeunet"],
+[9,"Quel acteur incarne Don Draper dans « Mad Men » ?","Jon Hamm","Bryan Cranston","Kevin Spacey","Kyle Chandler","hamm"],
+[9,"Quel film de Kubrick s'ouvre sur « L'Aube de l'humanité » ?","2001, l'Odyssée de l'espace","Shining","Orange mécanique","Barry Lyndon","2001"],
+[10,"Qui a réalisé « À bout de souffle » en 1960 ?","Jean-Luc Godard","François Truffaut","Claude Chabrol","Éric Rohmer","godard"],
+[10,"Quel film muet de Fritz Lang (1927) montre une ville futuriste ?","Metropolis","Nosferatu","M le maudit","Le Cabinet du docteur Caligari"]
+]
+};
+
+/* Drapeaux : [emoji, pays, difficulté, région, variantes] */
+const FLAGS = [
+["🇫🇷","France",1,"eu"],["🇯🇵","Japon",1,"as"],["🇧🇷","Brésil",1,"am"],["🇨🇦","Canada",1,"am"],["🇺🇸","États-Unis",1,"am","usa|etats unis|amerique"],
+["🇬🇧","Royaume-Uni",1,"eu","angleterre|uk|grande bretagne"],["🇮🇹","Italie",2,"eu"],["🇩🇪","Allemagne",2,"eu"],["🇪🇸","Espagne",2,"eu"],
+["🇨🇳","Chine",2,"as"],["🇨🇭","Suisse",2,"eu"],["🇰🇷","Corée du Sud",3,"as","coree"],["🇲🇽","Mexique",3,"am"],["🇦🇷","Argentine",3,"am"],
+["🇬🇷","Grèce",3,"eu"],["🇮🇳","Inde",3,"as"],["🇵🇹","Portugal",3,"eu"],["🇧🇪","Belgique",3,"eu"],["🇸🇪","Suède",3,"eu"],["🇹🇷","Turquie",3,"as"],
+["🇲🇦","Maroc",3,"af"],["🇦🇺","Australie",4,"oc"],["🇮🇪","Irlande",4,"eu"],["🇳🇱","Pays-Bas",4,"eu","hollande"],["🇳🇴","Norvège",4,"eu"],
+["🇩🇰","Danemark",4,"eu"],["🇫🇮","Finlande",4,"eu"],["🇮🇱","Israël",4,"as"],["🇯🇲","Jamaïque",4,"am"],["🇺🇦","Ukraine",4,"eu"],
+["🇿🇦","Afrique du Sud",5,"af"],["🇵🇱","Pologne",5,"eu"],["🇪🇬","Égypte",5,"af"],["🇸🇳","Sénégal",5,"af"],["🇩🇿","Algérie",5,"af"],
+["🇹🇳","Tunisie",5,"af"],["🇳🇿","Nouvelle-Zélande",5,"oc"],["🇻🇳","Vietnam",5,"as","viet nam"],["🇱🇧","Liban",5,"as"],["🇸🇦","Arabie saoudite",5,"as"],
+["🇨🇴","Colombie",6,"am"],["🇨🇱","Chili",6,"am"],["🇵🇪","Pérou",6,"am"],["🇳🇵","Népal",6,"as"],["🇭🇷","Croatie",6,"eu"],["🇮🇸","Islande",6,"eu"],
+["🇦🇹","Autriche",6,"eu"],["🇨🇮","Côte d'Ivoire",6,"af"],["🇨🇿","Tchéquie",6,"eu","republique tcheque"],["🇨🇺","Cuba",6,"am"],["🇮🇷","Iran",6,"as"],
+["🇵🇰","Pakistan",6,"as"],["🇹🇭","Thaïlande",6,"as"],["🇳🇬","Nigeria",6,"af"],["🇭🇺","Hongrie",7,"eu"],["🇷🇴","Roumanie",7,"eu"],["🇰🇪","Kenya",7,"af"],
+["🇨🇲","Cameroun",7,"af"],["🇲🇨","Monaco",7,"eu"],["🇮🇩","Indonésie",7,"as"],["🇺🇾","Uruguay",7,"am"],["🇵🇭","Philippines",7,"as"],
+["🇲🇾","Malaisie",7,"as"],["🇪🇹","Éthiopie",7,"af"],["🇬🇭","Ghana",7,"af"],["🇰🇭","Cambodge",7,"as"],["🇲🇱","Mali",8,"af"],["🇬🇳","Guinée",8,"af"],
+["🇧🇹","Bhoutan",8,"as"],["🇱🇰","Sri Lanka",8,"as"],["🇰🇿","Kazakhstan",8,"as"],["🇲🇳","Mongolie",8,"as"],["🇪🇪","Estonie",8,"eu"],
+["🇱🇻","Lettonie",8,"eu"],["🇱🇹","Lituanie",8,"eu"],["🇧🇴","Bolivie",8,"am"],["🇲🇬","Madagascar",8,"af"],["🇸🇨","Seychelles",8,"af"],
+["🇧🇦","Bosnie-Herzégovine",8,"eu","bosnie"],["🇹🇩","Tchad",9,"af"],["🇸🇮","Slovénie",9,"eu"],["🇸🇰","Slovaquie",9,"eu"],["🇵🇾","Paraguay",9,"am"],
+["🇱🇦","Laos",9,"as"],["🇲🇰","Macédoine du Nord",9,"eu","macedoine"],["🇧🇳","Brunei",10,"as"],["🇰🇮","Kiribati",10,"oc"],["🇲🇩","Moldavie",10,"eu"],["🇦🇩","Andorre",10,"eu"]
+];
+
+const ICONS = {
+  drapeaux:'<path d="M5 21V4"/><path d="M5 4h12l-2.5 4.5L17 13H5"/>',
+  logos:'<circle cx="12" cy="12" r="9"/><path d="M9.5 16.5v-9h3a2.6 2.6 0 0 1 0 5.2h-3m3 0 2.6 3.8"/>',
+  histoire:'<path d="M3 21h18M5 21v-9M9.5 21v-9M14.5 21v-9M19 21v-9M2.5 9.5 12 4l9.5 5.5z"/>',
+  geo:'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
+  sport:'<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M7 6H4a3 3 0 0 0 3 4M17 6h3a3 3 0 0 1-3 4"/>',
+  arts:'<path d="M12 3a9 9 0 1 0 0 18c1.1 0 1.6-.9 1.2-1.8-.5-1-.1-2.2 1.2-2.2H17a4 4 0 0 0 4-4c0-5.5-4-10-9-10z"/><circle cx="7.5" cy="11" r="1.2"/><circle cx="10" cy="7" r="1.2"/><circle cx="15" cy="7.5" r="1.2"/>',
+  sciences:'<circle cx="12" cy="12" r="1.6"/><ellipse cx="12" cy="12" rx="10" ry="4"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(60 12 12)"/><ellipse cx="12" cy="12" rx="10" ry="4" transform="rotate(120 12 12)"/>',
+  cinema:'<rect x="3" y="10" width="18" height="11" rx="1.5"/><path d="M3 10 4.6 4.6l15.6 0L19 10M8.5 4.6 7 10M13.5 4.6 12 10M18 4.6 16.5 10"/>'
+};
+const icon = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[id]}</svg>`;
+
+const THEMES = [
+  {id:'drapeaux', name:'Drapeaux',            color:'#FF5C7A'},
+  {id:'logos',    name:'Logos & Marques',     color:'#FFB020'},
+  {id:'histoire', name:'Histoire',            color:'#E8955C'},
+  {id:'geo',      name:'Géographie',          color:'#2FD39A'},
+  {id:'sport',    name:'Sport',               color:'#5B97FF'},
+  {id:'arts',     name:'Arts & Littérature',  color:'#BE82FF'},
+  {id:'sciences', name:'Sciences',            color:'#2CCBEA'},
+  {id:'cinema',   name:'Cinéma & Séries',     color:'#FF8450'}
+];
+const MAX_SCORE = 10*20 + 4*50 + 55 + 50;
+
+const PLAYERS = ['Mamie Turbo','LeBuzzeurFou','Clémence_42','Kévin du Quizz','PetitGénie','LaFouine','Nono Sapiens','Capitaine Culture','Didier Déchaîné','Zoé Ziggy',
+ 'Bertrand Bolide','Inès Insomnie','Le Grand Rémi','Sarah Savante','Patoche','Lulu Lumière','Yanis Express','Babeth','JJ Jackpot','Momo Mémoire',
+ 'Fanfan Fusée','Gégé Génial','Léa Laser','Tonton Trivia','Max Malin','Nina Nitro','Rico Récré','Sophie Sudoku','Hugo Hors-Piste','Jeanne Jeopardy',
+ 'Marcel Mégamix','Camille Chrono','Victor Vortex','Lola Lasagne','Paulo Podium','Agathe Atomik','Steph Stratos','Mehdi Météore','Odile Olympe','Basile Bazooka'];
+const AV_COLORS = ['#3FD0FF','#2EE6A0','#FF8450','#BE82FF','#FF5C7A','#5B97FF','#E8955C','#FFB020'];
+
+/* ---------- Jacky Paillettes, présentateur ---------- */
+const LINES = {
+ home:[
+  "Bienvenue sur le plateau ! Ici on gagne des points, on perd sa dignité, et on applaudit quand je le dis.",
+  "Les questions du jour sont toutes fraîches. Je les ai pondues ce matin, entre deux brushings.",
+  "Choisis un thème et viens affronter mon buzzer. Il ne mord pas. Moi, si.",
+  "Ah, te revoilà ! Le public t'avait oublié. Moi jamais. Enfin, presque.",
+  "Rappel : chaque seconde de réflexion coûte 2 points. Penser, c'est bien. Penser vite, c'est mieux.",
+  "J'ai mis ma veste à paillettes des grands soirs. Ne me déçois pas, elle est louée."
+ ],
+ vs:[
+  "Ce soir, c'est toi contre {rival} ! Que le meilleur gagne. Et si c'est {rival}, je ferai semblant d'être content.",
+  "{rival} a révisé toute la nuit. Enfin, a regardé des vidéos de chats. Ça compte ?",
+  "Thème : {theme} ! 25 questions, zéro pitié, et un maximum de paillettes !"
+ ],
+ practice:["Tu as déjà joué ce thème aujourd'hui. Cette partie-là, c'est de l'entraînement : pas de classement, juste la gloire intérieure."],
+ classic:[
+  "Manche classique ! 10 secondes par question, et chaque seconde coûte 2 points. Le temps c'est de l'argent, et moi je n'ai ni l'un ni l'autre.",
+  "Retour au classique ! Rapide et précis, comme un coiffeur sous pression."
+ ],
+ fast:["Mais quelle fusée ! J'ai pas eu le temps de cligner des paillettes !","Plus rapide que mon divorce !","BOUM ! Réponse éclair, cerveau en fusion !","Tu as triché ou t'es juste un génie ? Ne réponds pas."],
+ good:["Bonne réponse ! Le public est en délire. Enfin, Gérard au premier rang.","Exact ! Je l'aurais trouvé aussi, mais moi je suis payé pour parler.","C'est ça ! Tu peux remercier ta prof de CE2."],
+ slow:["C'est bon… mais t'as pris ton temps. On dirait mon oncle au péage.","Juste avant la sonnerie ! Mon petit cœur ne supporte pas ça."],
+ bad:["Aïe aïe aïe… même mon poisson rouge l'avait. Et il est mort en 2019.","Faux ! Je fais comme si je n'avais rien vu. Les caméras, elles, ont tout vu.","Non ! C'était presque ça. Enfin non, c'était pas presque du tout.","Ouille. On coupera au montage."],
+ timeout:["Allô ? Y a quelqu'un ? Le temps est écoulé, comme ma carrière au cinéma.","Trop lent ! La tortue de ma grand-mère aurait buzzé avant toi."],
+ ttmc:["Tu te mets combien ?! Note-toi de 1 à 10. Chaque palier vaut 5 points. Plus tu vises haut, plus la question pique."],
+ ttmcAsk:["Alors… tu te mets combien ? Sois honnête, je le saurai.","Allez, combien ? Le public retient son souffle. Gérard aussi."],
+ pickLow:["{n} ? La modestie, c'est beau. C'est aussi un peu triste.","{n}… Prudent. Ceinture ET bretelles."],
+ pickMid:["{n}, le juste milieu. Le jambon-beurre du quizz.","{n} ! Ni trop, ni trop peu. Très suisse comme choix."],
+ pickHigh:["{n} ?! On a un ego XXL sur le plateau !","{n} ! Ça sent la confiance. Ou le bluff. On va vite savoir."],
+ pick10:["DIX ?! Appelez les pompiers, il y a un melon qui prend feu !","10 sur 10 ! Monsieur-Madame Je-Sais-Tout est dans la place !"],
+ ttmcGood:["Pari tenu ! {pts} points dans la poche, et mon respect en bonus.","Tu t'étais mis {n} et tu assumes ! Chapeau, et paillettes."],
+ ttmcBad:["Ah… Tu t'étais mis {n}. L'univers t'a mis 0.","Raté ! L'ego vient de prendre un petit coup de froid."],
+ express:["STOOOP ! On arrête tout ! C'est l'EXPRESS TIME ! 10 vrai ou faux à toute vitesse. Enchaîne pour faire grimper le multiplicateur !"],
+ combo:["x{n} ! Ça chauffe, ça chauffe ! Quelqu'un a un extincteur ?","Combo x{n} ! Je transpire des paillettes !","x{n} ! Le plateau prend feu !","x{n} ! Même ma perruque a chaud !"],
+ comboBreak:["Patatras ! Le multiplicateur retombe. Comme mon soufflé du dimanche.","Et la flamme s'éteint… Allez, on rallume !"],
+ final:["EXTRA HARDCORE ! Une seule question, 50 points, aucune proposition. Juste toi, ton cerveau et ton clavier."],
+ finalGood:["INCROYABLE ! 50 POINTS ! Je pleure, et mon mascara n'est pas waterproof !"],
+ finalBad:["Raté ! C'était l'extra hardcore, hein. Même moi je l'avais pas. Bon, si. Mais j'avais les fiches."],
+ win:["VICTOIRE ! Tu as écrasé {rival} ! Je retire tout ce que j'ai dit dans ton dos.","Quel carnage ! {rival} pleure en coulisses. J'y vais, il a mes clés de voiture."],
+ lose:["Défaite… {rival} repart avec la gloire. Toi tu repars avec mon estime. Ça vaut pas grand-chose, mais c'est sincère.","Perdu ! Mais perdre avec panache, c'est déjà gagner. C'est ce que je me dis tous les soirs."],
+ tie:["ÉGALITÉ ! C'est la première fois que ça m'arrive. Enfin, la troisième."]
+};
+
+/* =========================================================
+   UTILITAIRES
+   ========================================================= */
+const $ = (s, el = document) => el.querySelector(s);
+const $$ = (s, el = document) => [...el.querySelectorAll(s)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function seedOf(str){ let h = 2166136261; for (const ch of str){ h ^= ch.codePointAt(0); h = Math.imul(h, 16777619); } return h >>> 0; }
+function mulberry(a){ return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const shuffle = (arr, r = Math.random) => { const a = arr.slice(); for (let i = a.length - 1; i > 0; i--){ const j = Math.floor(r() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+const pick = (arr, r = Math.random) => arr[Math.floor(r() * arr.length)];
+const line = (key, vars = {}) => pick(LINES[key]).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? '');
+const initials = n => (String(n).replace(/[_\-]/g,' ').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0,2) || '?').toUpperCase();
+const dayKey = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const yesterdayKey = () => { const d = new Date(); d.setDate(d.getDate() - 1); return dayKey(d); };
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const buzz = p => { try { navigator.vibrate && navigator.vibrate(p); } catch(e){} };
+function msToMidnight(){ const n = new Date(), m = new Date(n); m.setHours(24,0,0,0); return m - n; }
+const hms = ms => { const s = Math.max(0, Math.floor(ms/1000)); return [Math.floor(s/3600), Math.floor(s/60)%60, s%60].map(v => String(v).padStart(2,'0')).join(':'); };
+const themeById = id => THEMES.find(t => t.id === id);
+const featuredTheme = day => THEMES[seedOf('feat' + day) % THEMES.length].id;
+const skillOf = name => 0.35 + mulberry(seedOf('skill' + name))() * 0.55;
+const colorOf = name => AV_COLORS[seedOf(name) % AV_COLORS.length];
+
+/* ---------- réponses tapées : tolérance accents / fautes ---------- */
+const STOP = new Set(['le','la','les','l','un','une','des','de','du','d','the','a','au','aux','et','en']);
+function norm(s){
+  return String(s).toLowerCase().replace(/œ/g,'oe').replace(/æ/g,'ae').normalize('NFD').replace(/[̀-ͯ]/g,'')
+    .replace(/[^a-z0-9]+/g,' ').trim().split(' ').filter(w => w && !STOP.has(w)).join('');
+}
+function lev(a, b){
+  const m = a.length, n = b.length; if (!m) return n; if (!n) return m;
+  let prev = Array.from({length:n+1}, (_, j) => j);
+  for (let i = 1; i <= m; i++){ const cur = [i]; for (let j = 1; j <= n; j++) cur[j] = Math.min(prev[j]+1, cur[j-1]+1, prev[j-1] + (a[i-1] === b[j-1] ? 0 : 1)); prev = cur; }
+  return prev[n];
+}
+function isMatch(input, item){
+  const n = norm(input); if (!n) return false;
+  return [item.a, ...item.alts].some(c => {
+    const k = norm(c); if (!k) return false; if (k === n) return true;
+    const tol = /\d/.test(k) || k.length <= 4 ? 0 : k.length <= 9 ? 1 : 2;
+    return lev(k, n) <= tol;
+  });
+}
+
+/* =========================================================
+   SAUVEGARDE (navigateur)
+   ========================================================= */
+const STORE_KEY = 'quizz-paillettes-v1';
+const defaults = () => ({ pseudo:'Toi', xp:0, streak:0, lastDay:null, days:{}, best:{}, sound:true,
+  stats:{ games:0, wins:0, best:0, correct:0, answered:0, bestCombo:0, finals:0, finalsTried:0 } });
+function load(){
+  try { const raw = localStorage.getItem(STORE_KEY); if (raw){ const p = JSON.parse(raw); const d = defaults(); return Object.assign(d, p, { stats: Object.assign(d.stats, p.stats || {}) }); } } catch(e){}
+  return defaults();
+}
+function save(){ try { localStorage.setItem(STORE_KEY, JSON.stringify(S)); } catch(e){} }
+let S = load();
+
+function levelInfo(xp){ let lvl = 1, need = 500, acc = 0; while (xp >= acc + need){ acc += need; lvl++; need = 500 + (lvl-1) * 150; } return { lvl, into: xp - acc, need }; }
+const TITLES = [[1,'Bizut des plateaux'],[3,'Candidat timide'],[5,'Buzzer fou'],[8,'Cerveau du jeudi soir'],[12,'Champion de salon'],[16,'Légende du prime time'],[22,'Divinité du quizz']];
+const titleOf = lvl => TITLES.filter(t => lvl >= t[0]).pop()[1];
+
+/* =========================================================
+   SON (synthétisé, aucun fichier)
+   ========================================================= */
+const sfx = (() => {
+  let ctx = null;
+  function unlock(){ try { if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)(); if (ctx.state === 'suspended') ctx.resume(); } catch(e){} }
+  function tone(f, t0, dur, type = 'sine', vol = .14, slide){
+    if (!ctx || !S.sound) return;
+    const t = ctx.currentTime + t0, o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = type; o.frequency.setValueAtTime(f, t); if (slide) o.frequency.exponentialRampToValueAtTime(slide, t + dur);
+    g.gain.setValueAtTime(.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .012); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g).connect(ctx.destination); o.start(t); o.stop(t + dur + .05);
+  }
+  return {
+    unlock,
+    tap(){ tone(520, 0, .06, 'triangle', .07); },
+    good(){ tone(660, 0, .12, 'triangle'); tone(990, .09, .2, 'triangle'); },
+    bad(){ tone(190, 0, .38, 'sawtooth', .1, 80); },
+    tick(){ tone(1250, 0, .04, 'square', .045); },
+    count(){ tone(440, 0, .15, 'square', .08); },
+    go(){ tone(880, 0, .3, 'square', .09); },
+    fanfare(){ [523,659,784,1046].forEach((f,i) => tone(f, i*.11, .26, 'triangle', .13)); },
+    siren(){ for (let i = 0; i < 4; i++){ tone(720, i*.3, .15, 'square', .06); tone(980, i*.3 + .15, .15, 'square', .06); } },
+    combo(n){ tone(420 + n*70, 0, .1, 'triangle', .11); tone(640 + n*90, .06, .14, 'sine', .09); },
+    win(){ [523,659,784,1046,784,1046].forEach((f,i) => tone(f, i*.12, .3, 'triangle', .13)); },
+    lose(){ [392,349,311,262].forEach((f,i) => tone(f, i*.2, .32, 'sawtooth', .07)); }
+  };
+})();
+
+/* =========================================================
+   GÉNÉRATION QUOTIDIENNE DES 25 QUESTIONS
+   ========================================================= */
+function themeItems(id, r){
+  if (id === 'drapeaux'){
+    return FLAGS.map(([v, a, d, reg, alts]) => {
+      let pool = FLAGS.filter(f => f[1] !== a && (d >= 4 ? f[3] === reg : true));
+      if (pool.length < 3) pool = FLAGS.filter(f => f[1] !== a);
+      return { d, q:'À quel pays appartient ce drapeau ?', a, w: shuffle(pool, r).slice(0,3).map(f => f[1]), v, flag:true, alts: alts ? alts.split('|') : [] };
+    });
+  }
+  return BANK[id].map(([d, q, a, w1, w2, w3, alts]) => ({ d, q, a, w:[w1,w2,w3], alts: alts ? alts.split('|') : [] }));
+}
+function buildQuiz(themeId, day){
+  const r = mulberry(seedOf(day + '#' + themeId));
+  const items = shuffle(themeItems(themeId, r), r);
+  const take = (pred, n) => { const out = []; for (let i = 0; i < items.length && out.length < n; i++){ if (pred(items[i])){ out.push(items.splice(i,1)[0]); i--; } } return out; };
+  let classic = take(it => it.d <= 4, 10); if (classic.length < 10) classic = classic.concat(take(it => it.d <= 6, 10 - classic.length));
+  let fin = take(it => it.d >= 6, 1); if (!fin.length) fin = take(() => true, 1);
+  let exp = take(it => it.d <= 6, 10); if (exp.length < 10) exp = exp.concat(take(() => true, 10 - exp.length));
+  const mc = it => ({ mode:'classic', item:it, opts: shuffle([it.a, ...it.w], r) });
+  const ex = it => { const truth = r() < .5; return { mode:'express', item:it, truth, shown: truth ? it.a : pick(it.w, r) }; };
+  const steps = [
+    ...classic.slice(0,6).map(mc),
+    {mode:'ttmc'}, {mode:'ttmc'},
+    ...exp.map(ex),
+    ...classic.slice(6,10).map(mc),
+    {mode:'ttmc'}, {mode:'ttmc'},
+    { mode:'final', item: fin[0] }
+  ];
+  return { steps, pool: items, r };
+}
+function chooseTTMC(quiz, level){
+  const pool = quiz.pool;
+  const best = Math.min(...pool.map(it => Math.abs(it.d - level)));
+  const it = pick(pool.filter(x => Math.abs(x.d - level) === best), quiz.r);
+  pool.splice(pool.indexOf(it), 1);
+  return it;
+}
+function rivalFor(themeId, day){
+  const r = mulberry(seedOf('rival' + day + themeId));
+  const name = pick(PLAYERS, r);
+  const sk = skillOf(name);
+  return { name, color: colorOf(name), skill: clamp(sk + .1, .45, .9), lvl: 2 + Math.floor(sk * 28) };
+}
+
+/* =========================================================
+   CLASSEMENT DU JOUR (joueurs simulés qui jouent au fil de la journée)
+   ========================================================= */
+function botTheme(name, idx, themeId, day, mins){
+  const r = mulberry(seedOf(day + '|' + name + '|' + themeId));
+  const plays = r() < .7, at = idx < 6 ? 0 : 30 + Math.floor(Math.pow(r(), .85) * 1380);
+  const sk = skillOf(name);
+  const sc = Math.round(clamp(90 + sk * 300 + (r() - .5) * 170, 25, 470));
+  return plays && at <= mins ? sc : null;
+}
+function board(sel, day){
+  const now = new Date(), mins = now.getHours() * 60 + now.getMinutes();
+  const rows = PLAYERS.map((name, i) => {
+    if (sel === 'all'){
+      let total = 0, n = 0;
+      THEMES.forEach(t => { const s = botTheme(name, i, t.id, day, mins); if (s != null){ total += s; n++; } });
+      return n ? { name, score: total, sub: `${n} thème${n>1?'s':''}` } : null;
+    }
+    const s = botTheme(name, i, sel, day, mins);
+    return s == null ? null : { name, score: s };
+  }).filter(Boolean).map(r => Object.assign(r, { color: colorOf(r.name), lvl: 2 + Math.floor(skillOf(r.name) * 28) }));
+  const mine = S.days[day] || {};
+  let myScore = null, myN = 0;
+  if (sel === 'all'){ for (const k in mine){ myScore = (myScore || 0) + mine[k].score; myN++; } }
+  else if (mine[sel]) myScore = mine[sel].score;
+  if (myScore != null) rows.push({ name: S.pseudo, score: myScore, you: true, color: 'var(--gold)', lvl: levelInfo(S.xp).lvl, sub: sel === 'all' ? `${myN} thème${myN>1?'s':''}` : '' });
+  rows.sort((a, b) => b.score - a.score || (a.you ? -1 : 1));
+  return rows;
+}
+
+/* =========================================================
+   PRÉSENTATEUR (SVG) + BULLE QUI PARLE
+   ========================================================= */
+function hostSVG(){
+  return `<svg class="host-svg" viewBox="0 0 120 132" aria-label="Jacky Paillettes, le présentateur" role="img">
+  <path d="M12 132c2-23 19-36 48-36s46 13 48 36z" fill="#FF3D81"/>
+  <path d="M60 97 47 132h26z" fill="#FFF4E0"/>
+  <path d="M44 99 60 116 76 99" fill="none" stroke="#C81E5E" stroke-width="3" stroke-linejoin="round"/>
+  <g class="sequins" fill="#FFC93C"><circle cx="24" cy="120" r="1.8"/><circle cx="32" cy="110" r="1.5"/><circle cx="20" cy="128" r="1.4"/><circle cx="38" cy="124" r="1.7"/><circle cx="84" cy="122" r="1.8"/><circle cx="92" cy="110" r="1.5"/><circle cx="98" cy="126" r="1.4"/><circle cx="80" cy="130" r="1.3"/><circle cx="30" cy="102" r="1.2"/><circle cx="90" cy="102" r="1.2"/></g>
+  <path d="M49 103l11 5.5L49 114zM71 103l-11 5.5L71 114z" fill="#FFC93C"/><circle cx="60" cy="108.5" r="3" fill="#E0A100"/>
+  <rect x="52" y="84" width="16" height="15" rx="6" fill="#E9A57E"/>
+  <circle cx="31" cy="62" r="6" fill="#F2B48C"/><circle cx="89" cy="62" r="6" fill="#F2B48C"/>
+  <ellipse cx="60" cy="61" rx="29" ry="31" fill="#F6BE97"/>
+  <path d="M29 54C22 26 42 6 66 9c22 3 34 20 27 43-4-10-11-15-19-13 4-8-2-15-11-15-10 0-13 8-11 13-10-5-22 1-27 17z" fill="#FFC93C"/>
+  <path d="M43 21c9-8 27-8 35 3" stroke="#FFE7A0" stroke-width="3" fill="none" stroke-linecap="round"/>
+  <path d="M38 33c5-6 12-8 18-7" stroke="#E0A100" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <g class="brows" fill="#5A2E1A"><path d="M35 46q9-7 17-1l-1 3q-7-3-15 1z"/><path d="M85 46q-9-7-17-1l1 3q7-3 15 1z"/></g>
+  <g><rect x="33" y="50" width="22" height="15" rx="6" fill="#1B0B2E" stroke="#FF3D81" stroke-width="2.5"/><rect x="65" y="50" width="22" height="15" rx="6" fill="#1B0B2E" stroke="#FF3D81" stroke-width="2.5"/>
+  <path d="M55 56h10" stroke="#FF3D81" stroke-width="2.5"/><path d="M37 54h6M69 54h6" stroke="#FFFFFF" stroke-opacity=".7" stroke-width="2" stroke-linecap="round"/></g>
+  <path d="M60 63q4 7 0 10" stroke="#D98F68" stroke-width="2" fill="none" stroke-linecap="round"/>
+  <path d="M60 75c-6-4-14-4-18 2 4-1 7 0 9 2 3 2 7 1 9-1 2 2 6 3 9 1 2-2 5-3 9-2-4-6-12-6-18-2z" fill="#5A2E1A"/>
+  <g class="mouth"><ellipse cx="60" cy="84" rx="7" ry="4.5" fill="#7A1030"/><ellipse cx="60" cy="86" rx="4" ry="2" fill="#FF7A9A"/></g>
+  <g transform="rotate(-24 100 104)"><rect x="97" y="96" width="7" height="30" rx="3.5" fill="#2A1650"/><circle cx="100.5" cy="92" r="8" fill="#C2B2E0"/><path d="M94 90h13M94 94h13" stroke="#8F7DB3" stroke-width="1.4"/></g>
+  </svg>`;
+}
+const talkers = new WeakMap();
+function say(text, bubble){
+  if (!bubble) return;
+  const host = bubble.closest('[data-host]');
+  clearInterval(talkers.get(bubble));
+  const who = '<span class="who">Jacky Paillettes</span>';
+  if (reduced){ bubble.innerHTML = who + esc(text); return; }
+  let i = 0; bubble.innerHTML = who + '<span></span>'; const span = bubble.lastChild;
+  host && host.classList.add('talking');
+  const id = setInterval(() => {
+    i += 2; span.textContent = text.slice(0, i);
+    if (i >= text.length){ clearInterval(id); host && host.classList.remove('talking'); }
+  }, 22);
+  talkers.set(bubble, id);
+}
+const flameSVG = () => `<svg class="flame" viewBox="0 0 24 32" aria-hidden="true"><path d="M12 1c1.2 5.2 7.5 8.4 7.5 16.6a7.5 7.5 0 0 1-15 0c0-4.2 2-6.6 3.2-8.4.1 3 1.1 4.3 2.1 5.1C9.6 9.4 10.8 5 12 1z" fill="url(#flameGrad)"/><path class="f-in" d="M12 14.5c.6 3 3.6 4.4 3.6 8.1a3.6 3.6 0 0 1-7.2 0c0-2 .9-3.2 1.6-4 .2 1.3.7 2 1.2 2.4-.1-2.6.2-4.6.8-6.5z" fill="#FFE58A"/></svg>`;
+const xSVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+
+/* =========================================================
+   NAVIGATION
+   ========================================================= */
+let currentTab = 'home', rankSel = 'all';
+function show(id){
+  $$('.screen').forEach(s => s.hidden = s.id !== id);
+  const hub = ['scr-home','scr-rank','scr-profile'].includes(id);
+  $('#tabbar').hidden = !hub;
+}
+function goTab(tab){
+  currentTab = tab;
+  $$('.tab').forEach(b => { if (b.dataset.tab === tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current'); });
+  if (tab === 'home') renderHome();
+  if (tab === 'rank') renderRank();
+  if (tab === 'profile') renderProfile();
+  show('scr-' + tab);
+  $('#scr-' + tab).scrollTop = 0;
+}
+$('#tabbar').addEventListener('click', e => { const b = e.target.closest('[data-tab]'); if (b){ sfx.unlock(); sfx.tap(); goTab(b.dataset.tab); } });
+
+/* =========================================================
+   ÉCRAN : BIBLIOTHÈQUE
+   ========================================================= */
+function renderHome(){
+  const day = dayKey(), played = S.days[day] || {}, feat = featuredTheme(day), li = levelInfo(S.xp);
+  const done = Object.keys(played).length;
+  const date = new Date().toLocaleDateString('fr-FR', { weekday:'long', day:'numeric', month:'long' });
+  $('#scr-home').innerHTML = `
+    <header class="topbar">
+      <div class="brand" aria-label="Quizz Paillettes"><span class="brand-1">Quizz</span><span class="brand-2">Paillettes</span></div>
+      <div class="chips">
+        <span class="chip" title="Jours d'affilée">${flameSVG()}<b class="num">${S.streak}</b></span>
+        <button class="chip" data-tab-go="profile">Niv. <b class="num">${li.lvl}</b></button>
+      </div>
+    </header>
+    <section class="stage-card" data-host>
+      <div class="bulbs" aria-hidden="true">${'<i></i>'.repeat(16)}</div>
+      <div class="host-wrap">${hostSVG()}</div>
+      <div class="bubble" id="homeBubble"></div>
+    </section>
+    <section class="daily">
+      <div><span class="eyebrow">Questions du jour</span><b class="date">${date}</b></div>
+      <div class="renew"><span>Nouvelles questions dans</span><b data-cd>${hms(msToMidnight())}</b></div>
+      <div class="dprog" aria-hidden="true"><i style="width:${done/THEMES.length*100}%"></i></div>
+      <small>${done}/${THEMES.length} thèmes joués aujourd'hui · 25 questions par thème</small>
+    </section>
+    <h2 class="sec-title">Bibliothèque de quizz <small>Thème vedette : XP ×2</small></h2>
+    <div class="grid">${THEMES.map(t => themeCard(t, played[t.id], t.id === feat)).join('')}</div>`;
+  say(pick(LINES.home), $('#homeBubble'));
+}
+function themeCard(t, res, feat){
+  const status = res ? `${res.score} pts · ${res.win > 0 ? 'Victoire' : res.win < 0 ? 'Défaite' : 'Égalité'}` : 'Nouveau';
+  const cls = res ? (res.win >= 0 ? 'done' : 'lost') : '';
+  return `<button class="tcard" data-play="${t.id}" style="--c:${t.color}" aria-label="Jouer au quizz ${esc(t.name)}">
+    <span class="t-bgicon">${icon(t.id)}</span>
+    <span class="t-icon">${icon(t.id)}</span>
+    ${feat ? '<span class="t-feat">XP ×2</span>' : ''}
+    <span class="t-name">${esc(t.name)}</span>
+    <span class="t-sub">25 questions</span>
+    <span class="t-status ${cls}">${status}</span>
+  </button>`;
+}
+document.addEventListener('click', e => {
+  const p = e.target.closest('[data-play]'); if (p){ startQuiz(p.dataset.play); return; }
+  const g = e.target.closest('[data-tab-go]'); if (g){ sfx.unlock(); goTab(g.dataset.tabGo); }
+});
+
+/* =========================================================
+   ÉCRAN : CLASSEMENT
+   ========================================================= */
+function renderRank(){
+  const day = dayKey(), rows = board(rankSel, day);
+  const selName = rankSel === 'all' ? 'tous thèmes confondus' : themeById(rankSel).name;
+  const chips = [{id:'all', name:'Général', color:'var(--gold)'}, ...THEMES].map(t =>
+    `<button data-sel="${t.id}" aria-pressed="${t.id === rankSel}" style="--c:${t.color}">${esc(t.name)}</button>`).join('');
+  const top = rows.slice(0,3), rest = rows.slice(3);
+  const podOrder = [top[1], top[0], top[2]];
+  const pod = podOrder.map((r, i) => !r ? '<div></div>' : `<div class="pod p${[2,1,3][i]} ${r.you ? 'you' : ''}">
+      <span class="av ${i === 1 ? 'lg' : ''}" style="--c:${r.color}">${esc(initials(r.name))}</span>
+      <span class="nm">${esc(r.name)}</span>
+      <div class="block num">${r.score}<small>${['2e','1er','3e'][i]}</small></div></div>`).join('');
+  const meIn = rows.some(r => r.you);
+  $('#scr-rank').innerHTML = `
+    <header class="pg-head"><h1>Classement</h1><p>Du jour, ${esc(selName)} · fin dans <b data-cd>${hms(msToMidnight())}</b></p></header>
+    <div class="seg" role="group" aria-label="Choisir le classement">${chips}</div>
+    ${rows.length ? `<div class="podium">${pod}</div>` : ''}
+    ${meIn ? '' : `<div class="empty-you"><span><b>${esc(S.pseudo)}</b><br><small class="muted">Pas encore classé aujourd'hui</small></span><button class="btn-sm" data-tab-go="home">Jouer</button></div>`}
+    <ol class="board">${rest.map((r, i) => `<li class="row ${r.you ? 'you' : ''}">
+      <span class="rk">${i + 4}</span><span class="av" style="--c:${r.color}">${esc(initials(r.name))}</span>
+      <span class="nm">${esc(r.name)}<small>Niv. ${r.lvl}${r.sub ? ' · ' + r.sub : ''}</small></span><span class="sc">${r.score}</span></li>`).join('')}</ol>`;
+}
+$('#scr-rank').addEventListener('click', e => { const b = e.target.closest('[data-sel]'); if (b){ sfx.tap(); rankSel = b.dataset.sel; renderRank(); } });
+
+/* =========================================================
+   ÉCRAN : PROFIL
+   ========================================================= */
+function renderProfile(){
+  const li = levelInfo(S.xp), st = S.stats;
+  const acc = st.answered ? Math.round(st.correct / st.answered * 100) : 0;
+  const rules = [
+    ['var(--cyan)','x10','Classique','20 pts max par bonne réponse. 10 secondes, et chaque seconde écoulée retire 2 pts.'],
+    ['var(--gold)','1-10','Tu te mets combien ?','Tu t\'évalues de 1 à 10, la question s\'adapte. Bonne réponse : 5 pts par palier (niveau 5 = 25 pts).'],
+    ['var(--fire)','x10','Express time','10 vrai ou faux ultra rapides. 1 pt par bonne réponse, et le multiplicateur gagne +x1 à chaque enchaînement.'],
+    ['var(--hot)','50','Extra hardcore','La question finale, sans propositions : tu tapes la réponse en entier. 50 pts.']
+  ];
+  $('#scr-profile').innerHTML = `
+    <header class="pg-head"><h1>Profil</h1></header>
+    <section class="prof">
+      <div class="ring" style="--p:${Math.round(li.into / li.need * 100)}"><span class="av xl" style="--c:var(--gold)">${esc(initials(S.pseudo))}</span></div>
+      <div style="min-width:0">
+        <div class="ttl">Niveau ${li.lvl}</div>
+        <div class="muted" style="font-weight:800">${titleOf(li.lvl)}</div>
+        <label for="pseudo">Pseudo</label>
+        <input id="pseudo" maxlength="16" value="${esc(S.pseudo)}" autocomplete="off">
+      </div>
+      <div style="grid-column:1/-1">
+        <div class="xpbar"><i style="width:${li.into / li.need * 100}%"></i></div>
+        <div class="xpline"><span>${li.into} / ${li.need} XP</span><span>Total ${S.xp} XP</span></div>
+      </div>
+    </section>
+    <section class="stats">
+      <div class="stat"><b>${st.games}</b><small>Parties</small></div>
+      <div class="stat"><b>${st.wins}</b><small>Victoires</small></div>
+      <div class="stat"><b>${acc}%</b><small>Bonnes réponses</small></div>
+      <div class="stat"><b>${st.best}</b><small>Meilleur score</small></div>
+      <div class="stat"><b>x${st.bestCombo}</b><small>Meilleur combo</small></div>
+      <div class="stat"><b>${st.finals}/${st.finalsTried}</b><small>Finales réussies</small></div>
+    </section>
+    <h2 class="sec-title">Maîtrise par thème <small>record / ${MAX_SCORE}</small></h2>
+    <section class="mastery">${THEMES.map(t => { const b = S.best[t.id] || 0; return `<div class="m-row" style="--c:${t.color}"><span>${esc(t.name)}</span><span class="bar"><i style="width:${b / MAX_SCORE * 100}%"></i></span><span>${b}</span></div>`; }).join('')}</section>
+    <h2 class="sec-title">Barème</h2>
+    <section class="rules">${rules.map(r => `<div class="rule" style="--rc:${r[0]}"><span class="rn">${r[1]}</span><div><h3>${r[2]}</h3><p>${r[3]}</p></div></div>`).join('')}</section>
+    <div class="toggle"><span>Effets sonores</span><button class="switch" id="soundSw" role="switch" aria-checked="${S.sound}" aria-label="Effets sonores"></button></div>`;
+  $('#pseudo').addEventListener('change', e => { S.pseudo = e.target.value.trim().slice(0,16) || 'Toi'; save(); renderProfile(); });
+  $('#soundSw').addEventListener('click', () => { S.sound = !S.sound; save(); sfx.unlock(); sfx.tap(); $('#soundSw').setAttribute('aria-checked', S.sound); });
+}
+
+/* =========================================================
+   MOTEUR DE JEU
+   ========================================================= */
+let G = null;
+const scr = () => $('#scr-game');
+const stage = () => $('#gStage');
+
+function startTimer(ms, onTick, onEnd){
+  const t = { start: performance.now(), acc: 0, paused: false, done: false, raf: 0 };
+  const loop = now => {
+    if (t.done) return;
+    if (!t.paused){ const el = t.acc + (now - t.start); if (el >= ms){ t.done = true; onTick(ms); onEnd(); return; } onTick(el); }
+    t.raf = requestAnimationFrame(loop);
+  };
+  t.elapsed = () => t.paused ? t.acc : t.acc + performance.now() - t.start;
+  t.pause = () => { if (!t.paused){ t.acc += performance.now() - t.start; t.paused = true; } };
+  t.resume = () => { if (t.paused){ t.start = performance.now(); t.paused = false; } };
+  t.stop = () => { t.done = true; cancelAnimationFrame(t.raf); };
+  t.raf = requestAnimationFrame(loop);
+  return t;
+}
+function later(fn, ms){ const g = G; setTimeout(() => { if (!g || G !== g) return; if (g.paused){ g.queue.push(fn); return; } fn(); }, ms); }
+
+function startQuiz(themeId){
+  sfx.unlock(); sfx.tap();
+  const day = dayKey();
+  const ranked = !(S.days[day] && S.days[day][themeId]);
+  G = { theme: themeById(themeId), quiz: buildQuiz(themeId, day), rival: rivalFor(themeId, day), ranked, day,
+        idx: 0, score: 0, bot: 0, parts: {classic:0, ttmc:0, express:0, final:0}, levels: [],
+        mult: 1, botMult: 1, combo: 0, bestCombo: 0, classicOk: 0, correct: 0, answered: 0,
+        trail: [], finalOk: false, lastMode: null, timer: null, paused: false, queue: [], xIdx: 0 };
+  const el = scr(); el.className = 'screen pre';
+  const rv = G.rival;
+  el.innerHTML = `
+    <div class="g-top">
+      <button class="g-quit" data-quit aria-label="Quitter la partie">${xSVG}</button>
+      <div class="pl me"><span class="av" style="--c:var(--gold)">${esc(initials(S.pseudo))}</span><div class="pl-t"><small>${esc(S.pseudo)}</small><b id="gMe" class="num">0</b></div></div>
+      <div class="g-q"><b id="gNum">1</b><small>/25</small><span class="g-mode" id="gMode">Classique</span></div>
+      <div class="pl them"><div class="pl-t"><small>${esc(rv.name)}</small><b id="gBot" class="num">0</b></div><span class="av" style="--c:${rv.color}">${esc(initials(rv.name))}</span></div>
+    </div>
+    <div class="pips" id="gPips" aria-hidden="true">${G.quiz.steps.map(s => `<i class="m-${s.mode}"></i>`).join('')}</div>
+    <div class="g-host" data-host><div>${hostSVG()}</div><div class="bubble" id="gBubble"></div></div>
+    <div class="g-stage" id="gStage"></div>
+    <div class="overlay" id="gOverlay" hidden></div>
+    <div class="overlay dimmed" id="gConfirm" hidden></div>`;
+  show('scr-game');
+  renderVS();
+}
+
+function renderVS(){
+  const t = G.theme, rv = G.rival, li = levelInfo(S.xp);
+  const modes = [['var(--cyan)','Classique','x10 · 20 pts'],['var(--gold)','Tu te mets combien','x4 · 5 à 50 pts'],['var(--fire)','Express time','x10 · combo'],['var(--hot)','Extra hardcore','x1 · 50 pts']];
+  stage().innerHTML = `<div class="vs">
+    <span class="vs-theme" style="--c:${t.color}">${icon(t.id)} ${esc(t.name)}</span>
+    <div class="vs-row">
+      <div class="vs-p"><span class="av xl" style="--c:var(--gold)">${esc(initials(S.pseudo))}</span><b>${esc(S.pseudo)}</b><small>Niv. ${li.lvl}</small></div>
+      <div class="vs-x">VS</div>
+      <div class="vs-p"><span class="av xl" style="--c:${rv.color}">${esc(initials(rv.name))}</span><b>${esc(rv.name)}</b><small>Niv. ${rv.lvl}</small></div>
+    </div>
+    <span class="vs-tag ${G.ranked ? '' : 'practice'}">${G.ranked ? 'Partie classée' : 'Entraînement'}</span>
+    <div class="host-row" data-host><div>${hostSVG()}</div><div class="bubble" id="vsBubble"></div></div>
+    <ul class="vs-modes">${modes.map(m => `<li style="--rc:${m[0]}"><b>${m[1]}</b><span>${m[2]}</span></li>`).join('')}</ul>
+    <button class="btn-primary" id="goBtn">C'est parti !</button>
+  </div>`;
+  say(G.ranked ? line('vs', { rival: rv.name, theme: t.name }) : line('practice'), $('#vsBubble'));
+  $('#goBtn').onclick = e => { e.currentTarget.disabled = true; sfx.unlock(); countdown(); };
+}
+
+function countdown(){
+  const ov = $('#gOverlay'); ov.hidden = false; ov.classList.add('dimmed');
+  let n = 3;
+  const tick = () => {
+    if (!G) return;
+    if (n === 0){ sfx.go(); ov.hidden = true; ov.classList.remove('dimmed'); scr().classList.remove('pre'); nextStep(); return; }
+    sfx.count(); ov.innerHTML = `<div class="count">${n}</div>`; n--; later(tick, 700);
+  };
+  tick();
+}
+
+const MODE_LABEL = { classic:'Classique', ttmc:'Tu te mets combien', express:'Express time', final:'Extra hardcore' };
+const BANNERS = {
+  classic: { bc:'var(--cyan)', eyebrow:'Manche', title:'Classique', sub:'20 pts max · −2 pts par seconde · 10 s' },
+  ttmc:    { bc:'var(--gold)', eyebrow:'Le pari', title:'Tu te mets combien ?', sub:'Note-toi de 1 à 10 · 5 pts par palier' },
+  express: { bc:'var(--fire)', eyebrow:'Interruption !', title:'Express time', sub:'10 vrai/faux · 1 pt × multiplicateur' },
+  final:   { bc:'var(--hot)', eyebrow:'Question finale', title:'Extra hardcore', sub:'Aucune proposition · 50 pts' }
+};
+
+function updateTop(){
+  const st = G.quiz.steps[G.idx];
+  $('#gNum').textContent = G.idx + 1;
+  $('#gMode').textContent = MODE_LABEL[st.mode];
+  $$('#gPips i').forEach((p, i) => p.classList.toggle('cur', i === G.idx));
+}
+function nextStep(){
+  if (!G) return;
+  if (G.idx >= G.quiz.steps.length) return finish();
+  const st = G.quiz.steps[G.idx];
+  updateTop();
+  scr().classList.toggle('express', st.mode === 'express');
+  scr().classList.toggle('hardcore', st.mode === 'final');
+  if (st.mode !== G.lastMode){ G.lastMode = st.mode; showBanner(st.mode, () => runStep(st)); return; }
+  runStep(st);
+}
+function runStep(st){ ({ classic: viewClassic, ttmc: viewTTMCPick, express: viewExpress, final: viewFinal })[st.mode](st); }
+function advance(ms){ later(() => { G.idx++; nextStep(); }, ms); }
+
+function showBanner(mode, cb){
+  const b = BANNERS[mode], ov = $('#gOverlay');
+  stage().innerHTML = '';
+  ov.hidden = false; ov.classList.add('dimmed');
+  ov.innerHTML = `<div class="banner b-${mode}" style="--bc:${b.bc}"><div class="b-stripes"></div>
+    <span class="eyebrow">${b.eyebrow}</span><h2>${b.title}</h2><p class="sub">${b.sub}</p>
+    <div class="host-row" data-host><div>${hostSVG()}</div><div class="bubble" id="bBubble"></div></div>
+    <button class="btn-primary" id="bGo">Go !</button></div>`;
+  if (mode === 'express'){ sfx.siren(); buzz([80,60,80,60,160]); } else sfx.fanfare();
+  say(line(mode), $('#bBubble'));
+  let done = false;
+  const go = () => { if (done || !G) return; done = true; sfx.tap(); ov.hidden = true; ov.classList.remove('dimmed'); ov.innerHTML = ''; cb(); };
+  $('#bGo').onclick = go;
+  later(go, 12000);
+}
+
+/* ---------- affichage commun ---------- */
+const visual = it => it.v ? `<div class="visual" aria-label="drapeau">${it.v}</div>` : '';
+const timerHTML = (cls = '') => `<div class="timer ${cls}"><div class="bar"><i></i></div><span class="tval num"></span></div>`;
+const answersHTML = opts => `<div class="answers">${opts.map((o, i) => `<button class="ans" data-i="${i}"><span class="k">${'ABCD'[i]}</span><span class="lbl">${esc(o)}</span></button>`).join('')}</div>`;
+
+function tweenNum(el, from, to){
+  if (!el) return;
+  if (reduced || from === to){ el.textContent = to; return; }
+  const t0 = performance.now(), d = 600;
+  const step = now => { const k = Math.min(1, (now - t0) / d); el.textContent = Math.round(from + (to - from) * (1 - Math.pow(1 - k, 3))); if (k < 1) requestAnimationFrame(step); };
+  requestAnimationFrame(step);
+}
+function floatPts(pts, anchor){
+  const el = document.createElement('div');
+  el.className = 'floatpts' + (pts ? '' : ' zero');
+  el.textContent = pts ? '+' + pts : '0';
+  const r = (anchor || $('#gMe')).getBoundingClientRect();
+  el.style.left = (r.left + r.width / 2 - 20) + 'px'; el.style.top = (r.top - 6) + 'px';
+  document.body.appendChild(el); setTimeout(() => el.remove(), 1200);
+}
+function award(part, pts, botPts, ok){
+  const me0 = G.score, bot0 = G.bot;
+  G.score += pts; G.bot += botPts; G.parts[part] += pts; G.answered++; if (ok) G.correct++;
+  G.trail[G.idx] = ok ? 1 : 0;
+  tweenNum($('#gMe'), me0, G.score); tweenNum($('#gBot'), bot0, G.bot);
+  floatPts(pts);
+  const pip = $$('#gPips i')[G.idx]; if (pip){ pip.classList.remove('cur'); pip.classList.add(ok ? 'ok' : 'ko'); }
+  if (ok){ sfx.good(); buzz(30); } else { sfx.bad(); buzz([60,40,60]); }
+}
+function revealMCQ(opts, answer, chosen, botIdx){
+  $$('.ans', stage()).forEach((b, i) => {
+    b.disabled = true;
+    if (opts[i] === answer) b.classList.add('good');
+    else if (i === chosen) b.classList.add('bad');
+    else b.classList.add('dim');
+    if (i === botIdx) b.insertAdjacentHTML('beforeend', `<span class="botpick" style="--c:${G.rival.color}" title="Réponse de ${esc(G.rival.name)}">${esc(initials(G.rival.name))}</span>`);
+  });
+}
+function botMCQ(opts, answer, p){
+  const ci = opts.indexOf(answer);
+  if (Math.random() < .05) return { idx: -1, ok: false, time: 10 };
+  const ok = Math.random() < p;
+  const wrong = opts.map((_, i) => i).filter(i => i !== ci);
+  return { idx: ok ? ci : pick(wrong), ok, time: 1.2 + Math.random() * 7.5 };
+}
+function bindAnswers(fn){ $$('.ans', stage()).forEach(b => b.onclick = () => fn(+b.dataset.i)); }
+
+/* ---------- MODE 1 : CLASSIQUE ---------- */
+function viewClassic(st){
+  const it = st.item;
+  stage().innerHTML = `<div class="qcard" style="--c:${G.theme.color}"><span class="qtag">${esc(G.theme.name)}</span>${visual(it)}<h2 class="qtext">${esc(it.q)}</h2></div>${timerHTML()}${answersHTML(st.opts)}`;
+  const bar = $('.timer .bar i', stage()), tval = $('.tval', stage()), tw = $('.timer', stage());
+  let locked = false, lastSec = -1;
+  const t = startTimer(10000, el => {
+    const sec = Math.floor(el / 1000);
+    bar.style.transform = `scaleX(${1 - el / 10000})`;
+    tval.textContent = '+' + Math.max(0, 20 - 2 * sec);
+    if (sec !== lastSec){ lastSec = sec; tw.classList.toggle('low', sec >= 7); if (sec >= 7 && sec < 10) sfx.tick(); }
+  }, () => resolve(-1));
+  G.timer = t;
+  bindAnswers(resolve);
+  function resolve(i){
+    if (locked || !G) return; locked = true;
+    const el = t.elapsed(); t.stop(); G.timer = null;
+    const ok = i >= 0 && st.opts[i] === it.a;
+    const pts = ok ? Math.max(2, 20 - 2 * Math.floor(el / 1000)) : 0;
+    const bot = botMCQ(st.opts, it.a, clamp(G.rival.skill - (it.d - 3) * .05, .2, .95));
+    const botPts = bot.ok ? 20 - 2 * Math.floor(bot.time) : 0;
+    revealMCQ(st.opts, it.a, i, bot.idx);
+    if (ok) G.classicOk++;
+    award('classic', pts, botPts, ok);
+    say(i < 0 ? line('timeout') : !ok ? line('bad') : pts >= 16 ? line('fast') : pts <= 8 ? line('slow') : line('good'), $('#gBubble'));
+    advance(ok ? 1800 : 2300);
+  }
+}
+
+/* ---------- MODE 2 : TU TE METS COMBIEN ---------- */
+function viewTTMCPick(st){
+  stage().innerHTML = `<div class="ttmc">
+    <span class="eyebrow">Tu te mets combien en</span>
+    <h2>${esc(G.theme.name)} ?</h2>
+    <p class="muted">Note-toi de 1 à 10. La question sera de ce niveau. Bonne réponse = 5 pts × ta note.</p>
+    <div class="levels">${Array.from({length:10}, (_, k) => k + 1).map(n => `<button class="lv" data-lv="${n}" style="--h:${n}" aria-label="Niveau ${n}, ${n*5} points"><b>${n}</b><small>${n*5} pts</small></button>`).join('')}</div>
+  </div>`;
+  say(line('ttmcAsk'), $('#gBubble'));
+  let picked = false;
+  $$('.lv', stage()).forEach(b => b.onclick = () => {
+    if (picked || !G) return; picked = true;
+    const n = +b.dataset.lv; b.classList.add('picked'); sfx.combo(n / 2);
+    $$('.lv', stage()).forEach(x => { if (x !== b) x.style.opacity = .35; });
+    st.level = n; G.levels.push(n);
+    st.item = chooseTTMC(G.quiz, n); st.opts = shuffle([st.item.a, ...st.item.w]);
+    say(line(n === 10 ? 'pick10' : n >= 8 ? 'pickHigh' : n >= 4 ? 'pickMid' : 'pickLow', { n }), $('#gBubble'));
+    later(() => viewTTMCQ(st), 1300);
+  });
+}
+function viewTTMCQ(st){
+  const it = st.item, n = st.level, max = 15000;
+  stage().innerHTML = `<div class="qcard" style="--c:var(--gold)"><span class="lvbadge" style="--h:${n}">Niveau ${n} · ${n*5} pts</span>${visual(it)}<h2 class="qtext">${esc(it.q)}</h2></div>${timerHTML()}${answersHTML(st.opts)}`;
+  const bar = $('.timer .bar i', stage()), tval = $('.tval', stage()), tw = $('.timer', stage());
+  tval.textContent = '+' + n * 5;
+  let locked = false, lastSec = -1;
+  const t = startTimer(max, el => {
+    const sec = Math.floor(el / 1000);
+    bar.style.transform = `scaleX(${1 - el / max})`;
+    if (sec !== lastSec){ lastSec = sec; tw.classList.toggle('low', sec >= 11); if (sec >= 12 && sec < 15) sfx.tick(); }
+  }, () => resolve(-1));
+  G.timer = t;
+  bindAnswers(resolve);
+  function resolve(i){
+    if (locked || !G) return; locked = true; t.stop(); G.timer = null;
+    const ok = i >= 0 && st.opts[i] === it.a, pts = ok ? n * 5 : 0;
+    const sk = G.rival.skill;
+    const bl = clamp(Math.round(sk * 10 + (Math.random() - .5) * 4), 1, 10);
+    const bok = Math.random() < clamp(1.05 - bl * .075 + (sk - .6) * .5, .1, .95);
+    const optsIdx = st.opts.indexOf(it.a);
+    const bIdx = bok ? optsIdx : pick(st.opts.map((_, k) => k).filter(k => k !== optsIdx));
+    revealMCQ(st.opts, it.a, i, bIdx);
+    award('ttmc', pts, bok ? bl * 5 : 0, ok);
+    say(i < 0 ? line('timeout') : line(ok ? 'ttmcGood' : 'ttmcBad', { n, pts }), $('#gBubble'));
+    advance(ok ? 1900 : 2400);
+  }
+}
+
+/* ---------- MODE 3 : EXPRESS TIME ---------- */
+function multHTML(m, boost){ return `<div class="mult ${m >= 5 ? 'hot' : ''} ${boost ? 'boost' : ''}" style="--fs:${(0.75 + Math.min(m, 10) * .09).toFixed(2)}" aria-label="Multiplicateur x${m}">${flameSVG()}<b>x${m}</b></div>`; }
+function viewExpress(st){
+  const it = st.item; G.xIdx++;
+  const k = G.xIdx;
+  stage().innerHTML = `
+    <div class="xhead"><div id="xMult">${multHTML(G.mult)}</div><div style="text-align:right"><div class="xtitle">Express time</div><div class="xcount num">${k}<small>/10</small></div></div></div>
+    <div class="xcard" id="xCard">${it.flag ? `${visual(it)}<p class="xq">Ce drapeau est celui de…</p>` : `<p class="xq">${esc(it.q)}</p>`}<p class="xprop">${esc(st.shown)}</p></div>
+    ${timerHTML('fast')}
+    <div class="tf"><button class="tfb vrai" data-tf="1">Vrai</button><button class="tfb faux" data-tf="0">Faux</button></div>`;
+  const bar = $('.timer .bar i', stage()), tval = $('.tval', stage()), tw = $('.timer', stage()), max = 4000;
+  tval.textContent = '+' + G.mult;
+  let locked = false;
+  const t = startTimer(max, el => { bar.style.transform = `scaleX(${1 - el / max})`; tw.classList.toggle('low', el > 2800); }, () => resolve(null));
+  G.timer = t;
+  $$('.tfb', stage()).forEach(b => b.onclick = () => resolve(b.dataset.tf === '1'));
+  function resolve(v){
+    if (locked || !G) return; locked = true; t.stop(); G.timer = null;
+    const ok = v !== null && v === st.truth;
+    const pts = ok ? G.mult : 0;
+    const bok = Math.random() < .5 + G.rival.skill * .42;
+    const botPts = bok ? G.botMult : 0; G.botMult = bok ? G.botMult + 1 : 1;
+    const before = G.mult;
+    if (ok){ G.mult++; G.combo++; G.bestCombo = Math.max(G.bestCombo, G.combo); } else { G.mult = 1; G.combo = 0; }
+    const card = $('#xCard');
+    card.classList.add(ok ? 'ok' : 'ko');
+    if (!st.truth) card.insertAdjacentHTML('beforeend', `<p class="xtruth">Bonne réponse : ${esc(it.a)}</p>`);
+    $$('.tfb', stage()).forEach(b => { b.disabled = true; if ((b.dataset.tf === '1') !== st.truth) b.classList.add('dim'); });
+    award('express', pts, botPts, ok);
+    $('#xMult').innerHTML = multHTML(G.mult, ok);
+    if (ok && G.mult >= 3) sfx.combo(G.mult);
+    if (ok && [3,5,7,10].includes(G.mult)) say(line('combo', { n: G.mult }), $('#gBubble'));
+    else if (!ok && before >= 3) say(line('comboBreak'), $('#gBubble'));
+    advance(ok ? 650 : (st.truth ? 900 : 1500));
+  }
+}
+
+/* ---------- MODE 4 : EXTRA HARDCORE ---------- */
+function viewFinal(st){
+  const it = st.item, max = 30000;
+  stage().innerHTML = `
+    <div class="qcard final" style="--c:var(--hot)"><span class="qtag">Question finale · 50 pts</span>${visual(it)}<h2 class="qtext">${esc(it.q)}</h2></div>
+    ${timerHTML()}
+    <form class="final-form" id="finalForm" autocomplete="off">
+      <input id="finalInput" type="text" inputmode="text" autocapitalize="off" autocorrect="off" spellcheck="false" maxlength="60" placeholder="Tape ta réponse…" aria-label="Ta réponse">
+      <button class="btn-primary" type="submit">Valider</button>
+    </form>
+    <p class="hint">Accents et majuscules ne comptent pas. Une petite faute de frappe passe.</p>`;
+  const bar = $('.timer .bar i', stage()), tval = $('.tval', stage()), tw = $('.timer', stage()), input = $('#finalInput');
+  tval.textContent = '30s';
+  let locked = false, lastSec = -1;
+  const t = startTimer(max, el => {
+    const sec = Math.floor(el / 1000);
+    bar.style.transform = `scaleX(${1 - el / max})`;
+    if (sec !== lastSec){ lastSec = sec; tval.textContent = (30 - sec) + 's'; tw.classList.toggle('low', sec >= 24); if (sec >= 25 && sec < 30) sfx.tick(); }
+  }, () => resolve());
+  G.timer = t;
+  setTimeout(() => { try { input.focus(); } catch(e){} }, 150);
+  $('#finalForm').addEventListener('submit', e => { e.preventDefault(); resolve(); });
+  function resolve(){
+    if (locked || !G) return; locked = true; t.stop(); G.timer = null;
+    const val = input.value.trim();
+    const ok = isMatch(val, it);
+    G.finalOk = ok;
+    const bok = Math.random() < G.rival.skill * .5;
+    $('#finalForm').outerHTML = `<div class="reveal">
+      <div class="verdict ${ok ? 'ok' : 'ko'}">${ok ? '+50 points !' : 'Raté…'}</div>
+      <div class="you ${ok ? 'ok' : 'ko'}"><small>Ta réponse</small><b>${esc(val || '—')}</b></div>
+      <div class="ans-true"><small>Bonne réponse</small><b>${esc(it.a)}</b></div>
+      <div style="grid-column:1/-1"><small>${esc(G.rival.name)}</small><b>${bok ? 'A trouvé · +50' : 'A séché · 0'}</b></div></div>`;
+    $('.hint', stage())?.remove();
+    award('final', ok ? 50 : 0, bok ? 50 : 0, ok);
+    if (ok) confetti(90);
+    say(line(ok ? 'finalGood' : 'finalBad'), $('#gBubble'));
+    advance(3400);
+  }
+}
+
+/* ---------- quitter ---------- */
+scr().addEventListener('click', e => {
+  if (!e.target.closest('[data-quit]') || !G) return;
+  G.paused = true; G.timer && G.timer.pause();
+  const c = $('#gConfirm'); c.hidden = false;
+  c.innerHTML = `<div class="confirm"><h3>Abandonner ?</h3><p class="muted">Ta partie ne sera pas comptée et ${esc(G.rival.name)} gagnera par forfait.</p>
+    <div class="acts"><button class="btn-ghost" id="cQuit">Abandonner</button><button class="btn-primary" id="cStay">Continuer</button></div></div>`;
+  $('#cStay').onclick = () => { c.hidden = true; if (!G) return; G.paused = false; G.timer && G.timer.resume(); const q = G.queue.splice(0); q.forEach(f => f()); };
+  $('#cQuit').onclick = () => { c.hidden = true; if (G && G.timer) G.timer.stop(); G = null; goTab('home'); };
+});
+
+/* ---------- clavier (ordinateur) ---------- */
+document.addEventListener('keydown', e => {
+  if (!G || e.target.matches('input') || G.paused) return;
+  const k = e.key.toLowerCase();
+  const map = { '1':0, '2':1, '3':2, '4':3, a:0, b:1, c:2, d:3 };
+  if (k in map){ const b = $$('.ans', stage())[map[k]]; if (b && !b.disabled){ e.preventDefault(); b.click(); } }
+  else if (k === 'v' || k === 'arrowleft'){ const b = $('.tfb.vrai', stage()); b && !b.disabled && b.click(); }
+  else if (k === 'f' || k === 'arrowright'){ const b = $('.tfb.faux', stage()); b && !b.disabled && b.click(); }
+  else if (k === 'enter'){ const b = $('#bGo') || $('#goBtn'); if (b){ e.preventDefault(); b.click(); } }
+});
+
+/* =========================================================
+   FIN DE PARTIE
+   ========================================================= */
+function finish(){
+  const g = G; if (!g) return;
+  G = null;
+  const win = g.score > g.bot ? 1 : g.score < g.bot ? -1 : 0;
+  const feat = featuredTheme(g.day) === g.theme.id;
+  let xp = g.ranked ? g.score + (win > 0 ? 100 : win === 0 ? 40 : 0) : Math.round(g.score * .2);
+  if (feat && g.ranked) xp *= 2;
+  const before = levelInfo(S.xp); S.xp += xp; const after = levelInfo(S.xp);
+  const st = S.stats;
+  st.games++; if (win > 0) st.wins++; st.best = Math.max(st.best, g.score);
+  st.correct += g.correct; st.answered += g.answered; st.bestCombo = Math.max(st.bestCombo, g.bestCombo);
+  st.finalsTried++; if (g.finalOk) st.finals++;
+  S.best[g.theme.id] = Math.max(S.best[g.theme.id] || 0, g.score);
+  if (g.ranked){
+    (S.days[g.day] = S.days[g.day] || {})[g.theme.id] = { score: g.score, bot: g.bot, win, rival: g.rival.name };
+    if (S.lastDay !== g.day){ S.streak = S.lastDay === yesterdayKey() ? S.streak + 1 : 1; S.lastDay = g.day; }
+    Object.keys(S.days).sort().slice(0, -14).forEach(k => delete S.days[k]);
+  }
+  save();
+
+  let rankLine = '';
+  if (g.ranked){
+    const rows = board(g.theme.id, g.day), pos = rows.findIndex(r => r.you) + 1;
+    rankLine = `<div class="res-rank">Classement du jour en ${esc(g.theme.name)}<br><b>${pos}${pos === 1 ? 'er' : 'e'}</b> sur ${rows.length} joueurs</div>`;
+  }
+  const head = win > 0 ? ['win','Victoire !'] : win < 0 ? ['lose','Défaite'] : ['tie','Égalité'];
+  const lv = g.levels.length ? ` · niveaux ${g.levels.join(', ')}` : '';
+  const el = $('#scr-result');
+  el.innerHTML = `
+    <div class="res-head ${head[0]}"><span class="eyebrow">${esc(g.theme.name)} · ${g.ranked ? 'Partie classée' : 'Entraînement'}</span><h1>${head[1]}</h1></div>
+    <div class="res-vs">
+      <div class="side ${win >= 0 ? 'win' : ''}"><span class="av lg" style="--c:var(--gold)">${esc(initials(S.pseudo))}</span><b>${g.score}</b><small>${esc(S.pseudo)}</small></div>
+      <div class="mid">VS</div>
+      <div class="side ${win <= 0 ? 'win' : ''}"><span class="av lg" style="--c:${g.rival.color}">${esc(initials(g.rival.name))}</span><b>${g.bot}</b><small>${esc(g.rival.name)}</small></div>
+    </div>
+    <div class="host-row" data-host><div>${hostSVG()}</div><div class="bubble" id="resBubble"></div></div>
+    <ul class="break">
+      <li style="--rc:var(--cyan)"><span>Classique<small>${g.classicOk}/10 bonnes réponses</small></span><b>${g.parts.classic}</b></li>
+      <li style="--rc:var(--gold)"><span>Tu te mets combien<small>4 paris${lv}</small></span><b>${g.parts.ttmc}</b></li>
+      <li style="--rc:var(--fire)"><span>Express time<small>meilleur combo x${g.bestCombo}</small></span><b>${g.parts.express}</b></li>
+      <li style="--rc:var(--hot)"><span>Extra hardcore<small>${g.finalOk ? 'réussie' : 'ratée'}</small></span><b>${g.parts.final}</b></li>
+      <li class="total" style="--rc:var(--ink)"><span>Total<small>sur ${MAX_SCORE} possibles</small></span><b>${g.score}</b></li>
+    </ul>
+    <div class="trail" aria-label="Tes 25 réponses">${g.quiz.steps.map((_, i) => `<i class="${g.trail[i] === 1 ? 'ok' : g.trail[i] === 0 ? '' : 'x'}"></i>`).join('')}</div>
+    <div class="res-xp">
+      <div class="top"><span class="eyebrow">Expérience${feat && g.ranked ? ' · thème vedette ×2' : ''}${g.ranked ? '' : ' · entraînement'}</span><span class="gain">+${xp} XP</span></div>
+      <div class="xpbar"><i id="resXp" style="width:${after.lvl > before.lvl ? 0 : before.into / before.need * 100}%"></i></div>
+      <div class="xpline"><span>Niveau ${after.lvl} · ${titleOf(after.lvl)}</span><span>${after.into} / ${after.need}</span></div>
+      ${after.lvl > before.lvl ? `<span class="lvup">Niveau supérieur ! ${after.lvl}</span>` : ''}
+    </div>
+    ${rankLine}
+    <div class="res-actions">
+      <button class="btn-primary" id="resHome">Retour aux quizz</button>
+      <div class="row2"><button class="btn-ghost" id="resShare">Copier mon score</button><button class="btn-ghost" id="resReplay">Rejouer</button></div>
+    </div>`;
+  show('scr-result'); el.scrollTop = 0;
+  requestAnimationFrame(() => requestAnimationFrame(() => { const b = $('#resXp'); if (b) b.style.width = (after.into / after.need * 100) + '%'; }));
+  say(line(win > 0 ? 'win' : win < 0 ? 'lose' : 'tie', { rival: g.rival.name }), $('#resBubble'));
+  if (win > 0){ sfx.win(); confetti(180); } else if (win < 0) sfx.lose(); else sfx.fanfare();
+  $('#resHome').onclick = () => goTab('home');
+  $('#resReplay').onclick = () => startQuiz(g.theme.id);
+  $('#resShare').onclick = e => {
+    const marks = g.quiz.steps.map((s, i) => g.trail[i] === 1 ? (s.mode === 'express' ? '⚡' : s.mode === 'final' ? '💎' : '🟩') : (s.mode === 'final' ? '💀' : '🟥')).join('');
+    const d = new Date().toLocaleDateString('fr-FR');
+    const txt = `Quizz Paillettes · ${g.theme.name} · ${d}\n${marks}\n${g.score} pts · ${head[1]} contre ${g.rival.name} · combo x${g.bestCombo}`;
+    const btn = e.currentTarget;
+    const done = () => { btn.textContent = 'Copié !'; setTimeout(() => btn.textContent = 'Copier mon score', 1800); };
+    try { navigator.clipboard.writeText(txt).then(done, () => toast(txt)); } catch(err){ toast(txt); }
+  };
+}
+function toast(text){
+  const t = document.createElement('div'); t.className = 'toast'; t.style.whiteSpace = 'pre-line'; t.style.userSelect = 'all'; t.textContent = text;
+  document.body.appendChild(t); setTimeout(() => t.remove(), 5000);
+}
+
+/* =========================================================
+   CONFETTIS
+   ========================================================= */
+function confetti(n){
+  if (reduced) return;
+  const c = $('#confetti'), ctx = c.getContext('2d'), dpr = Math.min(2, devicePixelRatio || 1);
+  c.width = innerWidth * dpr; c.height = innerHeight * dpr; ctx.scale(dpr, dpr);
+  const cols = ['#FFC93C','#FF3D81','#3FD0FF','#2EE6A0','#FFF4E0','#FF6A1A'];
+  const ps = Array.from({length:n}, () => ({ x: innerWidth / 2 + (Math.random() - .5) * 80, y: innerHeight * .35, vx: (Math.random() - .5) * 14, vy: -Math.random() * 14 - 4,
+    s: 5 + Math.random() * 6, r: Math.random() * 6, vr: (Math.random() - .5) * .4, c: pick(cols) }));
+  const t0 = performance.now();
+  (function frame(now){
+    ctx.clearRect(0, 0, innerWidth, innerHeight);
+    ps.forEach(p => { p.vy += .35; p.vx *= .99; p.x += p.vx; p.y += p.vy; p.r += p.vr;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-p.s/2, -p.s/4, p.s, p.s/2); ctx.restore(); });
+    if (now - t0 < 3200) requestAnimationFrame(frame); else ctx.clearRect(0, 0, innerWidth, innerHeight);
+  })(t0);
+}
+
+/* =========================================================
+   HORLOGE : compte à rebours + changement de jour
+   ========================================================= */
+let shownDay = dayKey();
+setInterval(() => {
+  $$('[data-cd]').forEach(el => el.textContent = hms(msToMidnight()));
+  const d = dayKey();
+  if (d !== shownDay){ shownDay = d; if (!G && !$('#scr-' + currentTab).hidden) goTab(currentTab); }
+}, 1000);
+
+goTab('home');
+})();
+</script>
