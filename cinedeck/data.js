@@ -44,6 +44,11 @@ window.CINEDECK = (() => {
     grid: '<rect x="4" y="4" width="7" height="9" rx="1"/><rect x="13" y="4" width="7" height="9" rx="1"/><rect x="4" y="15" width="7" height="5" rx="1"/><rect x="13" y="15" width="7" height="5" rx="1"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21c1-4.6 4.4-7 8-7s7 2.4 8 7"/>',
     sliders: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
+    planet: '<circle cx="12" cy="12" r="5"/><ellipse cx="12" cy="12" rx="10.5" ry="3.4" transform="rotate(-20 12 12)"/>',
+    pencil: '<path d="M4 20l4.2-1L19.5 7.7 16.3 4.5 5 15.8z"/><path d="M14 6.8l3.2 3.2"/>',
+    cassette: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="8.5" cy="11.5" r="2"/><circle cx="15.5" cy="11.5" r="2"/><path d="M10.5 11.5h3M7 18l1.6-2.6h6.8L17 18"/>',
+    crescent: '<path d="M15.5 3.2a9 9 0 1 0 5.6 12.6A7.2 7.2 0 0 1 15.5 3.2z"/>',
+    camera: '<rect x="3" y="10" width="12" height="9" rx="1.5"/><path d="M15 13l6-3v9l-6-3"/><circle cx="6.5" cy="6.5" r="2.6"/><circle cx="12.2" cy="6.5" r="2.6"/>',
     external: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>'
   };
 
@@ -210,19 +215,19 @@ window.CINEDECK = (() => {
   ];
 
   const PACKS = [
-    { id: 'scifi', name: 'Science-Fiction', edition: 'Paradoxes temporels', price: 100,
+    { id: 'scifi', emblem: 'planet', name: 'Science-Fiction', edition: 'Paradoxes temporels', price: 100,
       colors: ['#0f4c5c', '#e36414', '#ffd166'], featured: true,
       desc: 'Voyages dans le temps, savants fous et planètes lointaines. Contient tout l\'univers de Retour vers le futur.' },
-    { id: 'animation', name: 'Dessin animé', edition: 'Crayons & celluloïd', price: 100,
+    { id: 'animation', emblem: 'pencil', name: 'Dessin animé', edition: 'Crayons & celluloïd', price: 100,
       colors: ['#023e8a', '#48cae4', '#ffd60a'],
       desc: 'Du papier découpé français à l\'animation japonaise.' },
-    { id: 'eighties', name: 'Années 80', edition: 'VHS & néons', price: 120,
+    { id: 'eighties', emblem: 'cassette', name: 'Années 80', edition: 'VHS & néons', price: 120,
       colors: ['#7209b7', '#f72585', '#4cc9f0'],
       desc: 'Synthés, skateboards et blockbusters de vidéoclub.' },
-    { id: 'horror', name: 'Frissons', edition: 'Minuit au drive-in', price: 100,
+    { id: 'horror', emblem: 'crescent', name: 'Frissons', edition: 'Minuit au drive-in', price: 100,
       colors: ['#2b0a0a', '#9d0208', '#dee2e6'],
       desc: 'Morts-vivants, loups-garous et familles inquiétantes.' },
-    { id: 'classics', name: 'Classiques', edition: 'Noir & blanc', price: 150,
+    { id: 'classics', emblem: 'camera', name: 'Classiques', edition: 'Noir & blanc', price: 150,
       colors: ['#1c1c1c', '#6c757d', '#e9d8a6'],
       desc: 'Les films qui ont écrit l\'histoire du cinéma.' }
   ];
